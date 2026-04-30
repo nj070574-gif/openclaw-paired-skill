@@ -4,6 +4,33 @@ All notable changes to the Paired skill are documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.0.4] — 2026-04-30 — Packaging fix: ship the wrappers and systemd units
+
+### Critical packaging fix
+
+v1.0.0 through v1.0.3 inadvertently published only `SKILL.md` and `bin/` to ClawHub. The `wrappers/` and `systemd/` directories were silently dropped at publish time because ClawHub's `listTextFiles()` only includes files with extensions in its text-file allowlist (`md`, `py`, `sh`, `js`, etc), and the wrapper scripts were named `paired-call`, `paired-inbox-hook`, etc. with no extension. Likewise the `.service` units were not in the allowlist.
+
+The OpenClaw safety scanner correctly flagged this as Supply Chain (High/Concern) for v1.0.3 — four of its ten findings (#2, #3, #6, #10) all traced to "the safety wrappers and systemd units described in SKILL.md are not in the published artifact."
+
+**v1.0.4 fixes the packaging:**
+
+- Wrappers renamed: `wrappers/paired-X` → `wrappers/paired-X.py` (14 files)
+- Systemd units renamed: `systemd/X.service` → `systemd/X.service.txt` (5 files)
+- SKILL.md adds a new "Installation" section showing how to symlink the `.py` files into `~/bin/` (dropping the suffix) and how to copy the `.service.txt` files into `~/.config/systemd/user/` as `.service` (also dropping the suffix)
+- Display name updated to **"Paired — Bluetooth Phone Bridge"** (was "Paired — Phone-as-Hardware for OpenClaw")
+
+### Security
+
+- **`bin/bt-call.py` now enforces the trusted-numbers allowlist** (OpenClaw scanner finding #2). The low-level dial primitive previously accepted arbitrary numbers; v1.0.4 refuses to dial unlisted numbers unless `--confirm` is passed. This brings the low-level primitive in line with the wrapper-enforced gating.
+
+### Action required for v1.0.0/v1.0.1/v1.0.2/v1.0.3 users
+
+```bash
+clawhub update paired      # pull v1.0.4
+```
+
+Follow the new "Installation" section in `SKILL.md` to wire the wrappers into `~/bin/` and the systemd units into `~/.config/systemd/user/`. **Earlier versions did not actually install the wrappers** — they were referenced in SKILL.md but missing from the package. v1.0.4 is the first version where `clawhub install paired` actually delivers the wrapper layer.
+
 ## [1.0.3] — 2026-04-30 — Privacy fix
 
 ### Security

@@ -52,11 +52,48 @@ safety:
 
 You are running on a Linux host with BlueZ + ofono installed and a phone paired over Bluetooth. The skill ships:
 
-- **Low-level primitives** at `skill/bin/bt-*` — BlueZ/ofono/ADB direct interfaces
-- **High-level wrappers** at `skill/wrappers/paired-*` — JSON-clean interfaces designed for agents to call
-- **Systemd unit files** at `skill/systemd/*.service` — for persistent listeners (SMS push, call watch, command hook)
+- **Low-level primitives** at `skill/bin/bt-*.py` — BlueZ/ofono/ADB direct interfaces
+- **High-level wrappers** at `skill/wrappers/paired-*.py` — JSON-clean interfaces designed for agents to call
+- **Systemd unit files** at `skill/systemd/*.service.txt` — for persistent listeners (SMS push, call watch, command hook). The `.txt` suffix is a packaging convention; rename to `.service` when copying into `~/.config/systemd/user/` (see Installation below).
 
-When reasoning about a phone task, prefer the high-level `paired-*` wrappers — they handle trust checks, error formatting, and JSON output. Drop to `bt-*` only for diagnostic or low-level work.
+## Installation
+
+After `clawhub install paired`:
+
+```bash
+# 1. Symlink (or copy) the bin/ and wrappers/ scripts into ~/bin/, dropping .py from filenames
+#    so the user/agent can invoke `paired-sms-send` rather than `paired-sms-send.py`.
+mkdir -p ~/bin
+for f in ~/.openclaw/workspace/skills/paired/bin/*.py; do
+  ln -sf "$f" ~/bin/"$(basename "$f" .py)"
+done
+for f in ~/.openclaw/workspace/skills/paired/wrappers/*.py; do
+  ln -sf "$f" ~/bin/"$(basename "$f" .py)"
+done
+for f in ~/.openclaw/workspace/skills/paired/wrappers/*.sh; do
+  ln -sf "$f" ~/bin/"$(basename "$f" .sh)"
+done
+chmod +x ~/.openclaw/workspace/skills/paired/bin/*.py \
+         ~/.openclaw/workspace/skills/paired/wrappers/*.py \
+         ~/.openclaw/workspace/skills/paired/wrappers/*.sh
+
+# 2. Optional: enable systemd user services. Strip the .txt suffix on copy.
+mkdir -p ~/.config/systemd/user
+for f in ~/.openclaw/workspace/skills/paired/systemd/*.service.txt; do
+  cp "$f" ~/.config/systemd/user/"$(basename "$f" .txt)"
+done
+systemctl --user daemon-reload
+
+# 3. One-time inbox HMAC key generation (required for paired-inbox-hook)
+paired-inbox-hook --keygen
+
+# 4. Optional: enable the inbox hook (HMAC-signed command dispatcher)
+systemctl --user enable --now paired-inbox-hook.service
+```
+
+The `.py`, `.sh`, and `.service.txt` extensions exist to satisfy the ClawHub packaging text-file allowlist; on disk in your `~/bin/` and `~/.config/systemd/user/` they should be the unsuffixed names referenced throughout this document.
+
+When reasoning about a phone task, prefer the high-level `paired-*` wrappers — they handle trust checks, error formatting, and JSON output. Drop to `bt-*` only for diagnostic or low-level work. **The low-level `bt-call` and `bt-sms` primitives now also enforce the trusted-numbers allowlist** (since v1.0.4) and refuse to dial/SMS unlisted numbers unless `--confirm` is passed.
 
 **Acting on the world vs. answering questions:** for status queries ("is my phone connected?", "any new SMS?"), running the tool and reporting the result is the right call. For high-impact actions (sending SMS, dialling calls, pairing new devices, unlocking the phone), confirm with the user first unless the request is unambiguous and the destination is on the trusted-numbers allowlist.
 
