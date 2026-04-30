@@ -4,6 +4,26 @@ All notable changes to the Paired skill are documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.0.5] — 2026-04-30 — Security: stop scraping /proc/*/environ for API keys
+
+### Security
+
+- **Removed /proc env scraping in `wrappers/paired-respond.py`.** Earlier versions read the OpenClaw process's environment block via `/proc/<pid>/environ` to harvest the `GEMINI_API_KEYS` value at runtime. VirusTotal Code Insight (PaLM) correctly flagged this as the same credential-harvesting technique used by malware, even though the intent was just to reuse the host's already-configured key. The mechanism was wrong shape regardless of intent.
+- **New contract:** Gemini keys come from `~/.config/paired/gemini-keys.conf` (mode 0600, refuses to read if more permissive). One key per line or comma-separated. The `PAIRED_GEMINI_KEYS` env var is accepted as an explicit override.
+- **Removed `SYSTEMD_UNIT` constant** and the `/etc/systemd/system/openclaw.service` read path. The skill no longer reads other services' unit files.
+
+### Action required for users of `paired-respond`
+
+If you used the SMS auto-responder feature (`Hi Agent, ...` SMS → Gemini-drafted reply):
+
+```bash
+mkdir -p ~/.config/paired
+echo 'YOUR_GEMINI_API_KEY' > ~/.config/paired/gemini-keys.conf
+chmod 600 ~/.config/paired/gemini-keys.conf
+```
+
+The skill won't read the key from any other location. If the file is missing or world-readable, `paired-respond` will log an error and skip the LLM call (it will still post a Telegram alert with the question, just without an auto-drafted reply).
+
 ## [1.0.4] — 2026-04-30 — Packaging fix: ship the wrappers and systemd units
 
 ### Critical packaging fix

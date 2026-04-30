@@ -39,7 +39,8 @@ _HOME = str(Path.home())
 LOG_DIR = Path.home() / "bt-skill-expansion"
 LOG_FILE = LOG_DIR / "sms-respond.log"
 TG_ENV = Path.home() / ".config" / "paired-sms-watch" / "telegram.env"
-SYSTEMD_UNIT = "/etc/systemd/system/openclaw.service"
+# v1.0.5: SYSTEMD_UNIT and /proc env scraping are gone. Keys live in
+# ~/.config/paired/gemini-keys.conf (mode 0600). See load_gemini_keys() below.
 
 # Trusted numbers loaded from shared config file.
 # Used by both paired-respond (SMS auto-reply) and paired-call-handler.
@@ -188,32 +189,59 @@ def load_telegram_env() -> tuple[str | None, str | None]:
 
 
 def load_gemini_keys() -> list[str]:
-    """Read Gemini keys from systemd unit or live process env."""
+    """Read Gemini API keys from a user-supplied config file.
+
+    v1.0.5 changed where these come from. Earlier versions (1.0.0–1.0.4) read
+    them by:
+      1. parsing /etc/systemd/system/openclaw.service for an Environment= line, OR
+      2. iterating /proc/<pid>/environ on every running PID looking for an
+         openclaw process and pulling GEMINI_API_KEYS= out of its env block.
+
+    The /proc scraping was correctly flagged by the OpenClaw safety scanner
+    (and VirusTotal Code Insight) as the same technique malware uses to harvest
+    credentials from other processes. The intent was benign — reuse the host's
+    already-configured key — but the mechanism was wrong shape.
+
+    The new contract: keys live in `~/.config/paired/gemini-keys.conf`,
+    mode 0600, one key per line (or comma-separated on a single line). That's
+    it. No /proc reading. No systemd-unit parsing. The PAIRED_GEMINI_KEYS env
+    var is also accepted as an explicit override.
+    """
+    # 1. Explicit env var override
+    env_val = os.environ.get("PAIRED_GEMINI_KEYS", "").strip()
+    if env_val:
+        return [k.strip() for k in env_val.split(",") if k.strip()]
+
+    # 2. Config file
+    cfg = Path.home() / ".config" / "paired" / "gemini-keys.conf"
+    if not cfg.exists():
+        return []
+    # Refuse to read if the file isn't 0600
     try:
-        try:
-            unit_text = Path(SYSTEMD_UNIT).read_text()
-            for line in unit_text.splitlines():
-                m = re.match(r'\s*Environment\s*=\s*"?GEMINI_API_KEYS=([^"]+)"?', line)
-                if m:
-                    return [k.strip() for k in m.group(1).split(",") if k.strip()]
-        except (OSError, PermissionError):
-            pass
-        # Fallback: read from openclaw process env
-        for pid_dir in Path("/proc").iterdir():
-            if not pid_dir.name.isdigit():
+        mode = cfg.stat().st_mode & 0o777
+        if mode & 0o077:
+            log.error(f"refusing to read {cfg}: permissions {oct(mode)} are too open; "
+                      f"chmod 600 it first")
+            return []
+    except OSError as e:
+        log.warning(f"could not stat {cfg}: {e}")
+        return []
+
+    keys: list[str] = []
+    try:
+        for line in cfg.read_text().splitlines():
+            line = line.split("#", 1)[0].strip()
+            if not line:
                 continue
-            try:
-                cmdline = (pid_dir / "cmdline").read_bytes()
-                if b"openclaw" in cmdline:
-                    env = (pid_dir / "environ").read_bytes().decode("utf-8", "replace")
-                    for kv in env.split("\x00"):
-                        if kv.startswith("GEMINI_API_KEYS="):
-                            return [k.strip() for k in kv[16:].split(",") if k.strip()]
-            except (OSError, PermissionError):
-                continue
-    except OSError:
-        pass
-    return []
+            # Accept comma-separated or one-per-line
+            for k in line.split(","):
+                k = k.strip()
+                if k:
+                    keys.append(k)
+    except OSError as e:
+        log.warning(f"could not read {cfg}: {e}")
+        return []
+    return keys
 
 
 def geocode_city(city: str, timeout: float = 8.0) -> tuple[float, float, str] | None:
