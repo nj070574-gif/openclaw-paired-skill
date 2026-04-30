@@ -4,6 +4,14 @@ All notable changes to the Paired skill are documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.0.6] — 2026-04-30 — Display name encoding fix
+
+### Fixed
+
+- Display name on the ClawHub registry was stored as the literal 6-character escape sequence `\u2014` (backslash, u, 2, 0, 1, 4) instead of the actual em-dash character (`—`, U+2014, 3 bytes in UTF-8). Caused by shell-quoting layers during the v1.0.4/v1.0.5 publish from Windows → docker → SSH → kali → openclaw host. Re-published v1.0.6 with the name constructed via `printf '\xe2\x80\x94'` so the byte sequence is correct.
+
+No code changes from v1.0.5. Identical 57-file artifact.
+
 ## [1.0.5] — 2026-04-30 — Security: stop scraping /proc/*/environ for API keys
 
 ### Security
