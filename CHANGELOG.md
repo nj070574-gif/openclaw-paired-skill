@@ -4,6 +4,102 @@ All notable changes to the Paired skill are documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-04-30 — Privacy fix
+
+### Security
+
+- **Removed hardcoded ADB device serial** in `skill/wrappers/paired-call-and-speak`. The earlier `ADB_DEVICE = "<serial>"` constant was the skill author's own phone hardware serial — a piece of personally-identifying hardware data that shouldn't have shipped publicly. Replaced with a config-driven loader that reads `adb_device` from `~/.config/paired/paired.conf`, falls back to the `PAIRED_ADB_DEVICE` environment variable, and finally defaults to letting `adb` pick the only attached device.
+- **Updated `paired.conf.example`** to document the new `adb_device` key.
+
+### Action required for v1.0.0/v1.0.1/v1.0.2 users
+
+If you used `paired-call-and-speak` with the previous version, the hardcoded
+serial would have been ignored on your system unless you happen to have a
+device with the matching serial. The fix is purely about removing identifying
+data from the published package. To configure your own device:
+
+```
+echo 'adb_device = <YOUR_SERIAL>' >> ~/.config/paired/paired.conf
+# or:
+export PAIRED_ADB_DEVICE=<YOUR_SERIAL>
+```
+
+You can find your serial with `adb devices`.
+
+## [1.0.2] — 2026-04-30 — Hardening release
+
+Addresses 10 findings from the OpenClaw safety scanner. None of these were
+active vulnerabilities; they were architectural risks and missing safeguards
+appropriate for the high-impact capabilities this skill exposes (sending SMS,
+placing calls, controlling a paired phone via ADB).
+
+### Security
+
+- **Memory poisoning fix (finding #9):** new `paired-inbox-hook` replaces the
+  legacy `paired-sms-command-hook`. The new hook reads commands from a
+  dedicated, append-only inbox at `~/.openclaw/paired/inbox/`, with HMAC-SHA256
+  signature verification using a key at `~/.config/paired/inbox.key` (mode
+  0600). Commands include a timestamp (5-minute clock-skew window) and a
+  unique nonce (replay protection). Agent session JSONL logs are no longer
+  parsed as a command source.
+  - One-time setup: `paired-inbox-hook --keygen`
+  - Run: `systemctl --user enable --now paired-inbox-hook.service`
+  - Test: `paired-inbox-hook --put '{"command":"phone_verb","verb":"status"}'`
+- **Legacy hook deprecated:** `paired-sms-command-hook` now refuses to run
+  unless invoked with both `--legacy-jsonl-source` and
+  `--i-understand-the-risks`. The systemd unit is no longer auto-enabled.
+- **Pairing-agent default change (finding #7):** `bt-agent.py` default mode is
+  now `pin` (interactive). Wide-open `--mode auto` without a `--device-filter`
+  now requires `--i-mean-it` to opt in to that risk. The previous default
+  (broad auto-confirm) was a footgun.
+- **SMS fallback opt-in (finding #5):** `paired-call-and-speak` no longer
+  automatically sends an SMS when TTS-during-call fails. The fallback is now
+  opt-in per invocation via `--with-sms-fallback`. The new inbox-hook
+  exposes the same flag as `with_sms_fallback: false` (default) in the
+  command JSON.
+
+### Documentation
+
+- **Capability declaration (findings #4, #8, #10):** SKILL.md frontmatter now
+  includes `capabilities`, `requires`, and `safety` blocks declaring what the
+  skill can do, what it needs, and what scope it operates in. This makes the
+  high-impact actions explicit before installation.
+- **Telegram dependency declared (finding #10):** Telegram bot integration is
+  now listed in `requires.external_services` and the security model is
+  documented under a new `## Security model` section in SKILL.md.
+- **Trust gating documented (finding #2):** Outgoing SMS and outbound calls
+  via the inbox-hook now require either an entry in
+  `~/.config/paired/trusted-numbers.conf` OR an explicit `"confirmed": true`
+  field in the command JSON. An empty trusted list is the safe default.
+- **Reworded "guarantee" language (finding #6):** SMS fallback is now
+  described as "best-effort" rather than "guaranteed".
+- **Reworded execution-context steering (finding #1):** The earlier
+  "do not answer from documentation — execute the tools" line was rewritten
+  to be advisory rather than directive. Status queries still favour
+  execution; high-impact actions now explicitly call for user confirmation.
+
+### Notes on findings not requiring code changes
+
+- **Finding #3 (supply chain):** the scanner reported that `paired-*`
+  wrappers were not in the artifact. They have always been at
+  `skill/wrappers/`. v1.0.2 also adds `skill/wrappers/paired-inbox-hook` and
+  `skill/systemd/paired-inbox-hook.service` to the bundle.
+- **Finding #4 (ADB code execution):** the scanner correctly classifies this
+  as `Note` rather than `Concern` — ADB control is the documented purpose of
+  this skill. Capability tags now declare it explicitly.
+
+### Action required for v1.0.0/v1.0.1 users
+
+1. `clawhub update paired` to pull v1.0.2
+2. `paired-inbox-hook --keygen` to generate the HMAC key
+3. `systemctl --user enable --now paired-inbox-hook.service`
+4. `systemctl --user disable --now paired-sms-command-hook.service`
+   (or stop it manually if already running)
+5. Update any external Telegram relay you wrote to drop signed JSON files
+   into `~/.openclaw/paired/inbox/` rather than relying on session-log tail.
+6. If you used `paired-call-and-speak` and want the previous SMS-fallback
+   behaviour, add `--with-sms-fallback` to your invocations.
+
 ## [1.0.1] — 2026-04-30 — Security fix
 
 ### Security

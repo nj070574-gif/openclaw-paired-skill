@@ -7,15 +7,20 @@ requests from peer devices (phones, headphones, beacons) are handled
 without a human at the keyboard.
 
 Modes:
-  --mode auto   (default) NoInputNoOutput agent.
-                Auto-confirms pairing. Works for: BLE peripherals, headphones,
-                speakers, most beacons, and Just Works pairings.
-  --mode pin    KeyboardDisplay agent.
+  --mode pin    (default) KeyboardDisplay agent.
                 Surfaces passkey/PIN prompts via:
                   * a JSON file at ~/.cache/bluetooth/pending-passkey.json
                   * stderr (so journalctl shows it)
                 Confirms when ~/.cache/bluetooth/confirm exists, denies when
                 ~/.cache/bluetooth/deny exists. Times out after 60s -> deny.
+  --mode auto   NoInputNoOutput agent. Auto-confirms pairing.
+                Works for: BLE peripherals, headphones, speakers, most
+                beacons, and Just Works pairings.
+                IMPORTANT: --mode auto without --device-filter will accept
+                ANY incoming pairing request. Always pair --mode auto with
+                --device-filter unless you genuinely want a wide-open agent
+                for a brief, supervised pairing window. Pass --i-mean-it to
+                acknowledge that risk and use --mode auto without a filter.
 
 Both modes accept any service authorisation (so an A2DP/HFP profile just works
 once paired+trusted).
@@ -205,12 +210,22 @@ class BluezAgent(dbus.service.Object):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="BlueZ pairing agent for the bluetooth skill")
-    ap.add_argument("--mode", default="auto", choices=["auto", "pin"])
+    # Default is now `pin` (interactive) for safety. `auto` requires explicit opt-in.
+    ap.add_argument("--mode", default="pin", choices=["auto", "pin"])
     ap.add_argument("--device-filter", default=None,
                     help="Only auto-confirm pairings from this MAC")
+    ap.add_argument("--i-mean-it", action="store_true",
+                    help="Required to use --mode auto without --device-filter")
     ap.add_argument("--make-pairable", action="store_true",
                     help="Set Pairable=on, PairableTimeout=180 on hci0 then exit")
     args = ap.parse_args()
+
+    # Safety check: refuse wide-open auto-pairing unless user explicitly opted in.
+    if args.mode == "auto" and not args.device_filter and not args.i_mean_it:
+        _log("REFUSING: --mode auto without --device-filter is wide-open pairing.")
+        _log("Either: (a) supply --device-filter MAC, or (b) pass --i-mean-it to")
+        _log("acknowledge the risk and proceed (e.g. for a brief supervised pair).")
+        return 2
 
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()

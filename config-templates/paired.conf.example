@@ -18,6 +18,16 @@ phone_bt_mac = AA:BB:CC:DD:EE:FF
 # Friendly display name (used only in Telegram alerts and log lines).
 phone_label = My Phone
 
+# === ADB device serial (for paired-call-and-speak and ADB-based wrappers) ===
+# The hardware serial of your phone as ADB sees it. Find it with:
+#   adb devices
+# If you only have ONE phone attached over ADB, you can leave this blank and
+# the wrappers will pick the only attached device automatically.
+# Alternatively, set the PAIRED_ADB_DEVICE environment variable.
+#
+# Default: empty (use first attached device)
+adb_device =
+
 # === Bluetooth adapter ===
 # Which HCI adapter to use. Run `bt-adapters` to see what's available.
 # Default: hci0

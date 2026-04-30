@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """paired-call-and-speak - Dial a number, then speak a message via Tasker.
 
-Architecture (v2 - intent-broadcast path, 2026-04-28):
+Architecture (v2.1 - intent-broadcast path + opt-in SMS fallback):
   1. Dial <number> via paired-call dial
   2. Wait for the call to ring/connect (configurable delay)
   3. Fire ADB intent broadcast: net.dinglisch.android.tasker.PAIRED_TRIGGER
@@ -9,16 +9,22 @@ Architecture (v2 - intent-broadcast path, 2026-04-28):
   4. Tasker on the phone catches the Intent Received event and runs the
      "Agent Speak Now" task, which speaks par1 via Stream 5 (Voice Call)
      so the cellular caller hears it.
+  5. (OPT-IN) If --with-sms-fallback is passed AND the speak step failed,
+     also send the same message body as an SMS so the recipient still gets
+     it. This is OFF by default — v1.0.2 made the fallback explicit per
+     OpenClaw scanner finding #5 (Cascading Failures).
 
 Validated working 2026-04-28 incl. cold state with screen off >30s.
 
 Usage:
-  paired-call-and-speak <recipient_number> <message_text> [--no-call] [--json]
+  paired-call-and-speak <recipient_number> <message_text>
+                        [--no-call] [--json] [--with-sms-fallback]
 """
 from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -31,7 +37,39 @@ LOG_FILE = LOG_DIR / "call-and-speak.log"
 
 CALL_BIN = f"{_HOME}/bin/paired-call"
 ADB_BIN = "/usr/bin/adb"
-ADB_DEVICE = "294cf90524017ece"
+PAIRED_CONF = Path.home() / ".config" / "paired" / "paired.conf"
+
+
+def _load_adb_device() -> str | None:
+    """Read adb_device from ~/.config/paired/paired.conf, or fall back to env
+    or the first attached device. Returns None if nothing is configured.
+
+    Removed in v1.0.2: the previous hardcoded ADB_DEVICE constant was the
+    skill author's own phone hardware serial. That was wrong — it should be
+    user-supplied. Set 'adb_device' in paired.conf, or PAIRED_ADB_DEVICE in
+    the environment, or leave both unset to use the first attached device.
+    """
+    # 1. env var
+    env_val = os.environ.get("PAIRED_ADB_DEVICE")
+    if env_val:
+        return env_val
+    # 2. paired.conf
+    if PAIRED_CONF.exists():
+        try:
+            for line in PAIRED_CONF.read_text().splitlines():
+                line = line.split("#", 1)[0].strip()
+                if not line or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == "adb_device":
+                    val = v.strip().strip('"').strip("'")
+                    if val:
+                        return val
+        except OSError:
+            pass
+    # 3. nothing configured — caller will pass no -s flag and adb will pick
+    #    the only attached device (or fail if multiple)
+    return None
 
 TASKER_INTENT = "net.dinglisch.android.tasker.PAIRED_TRIGGER"
 
@@ -69,8 +107,12 @@ def run_call_dial(number, timeout=25):
 def fire_speak_intent(message, par2=""):
     safe_msg = message.replace("'", "'\\''")
     safe_par2 = par2.replace("'", "'\\''")
-    cmd = [
-        ADB_BIN, "-s", ADB_DEVICE, "shell",
+    adb_device = _load_adb_device()
+    cmd = [ADB_BIN]
+    if adb_device:
+        cmd += ["-s", adb_device]
+    cmd += [
+        "shell",
         "am broadcast -a " + TASKER_INTENT +
         " --es par1 '" + safe_msg + "'" +
         " --es par2 '" + safe_par2 + "'",
@@ -100,6 +142,9 @@ def main():
                    help="Skip the dial step")
     p.add_argument("--json", action="store_true",
                    help="Emit JSON status")
+    p.add_argument("--with-sms-fallback", action="store_true",
+                   help="Opt-in: if TTS fails, send the same body as an SMS "
+                        "(best-effort, not a guarantee). Off by default.")
     p.add_argument("--ring-wait", type=int, default=RING_WAIT_SECONDS,
                    help="Seconds between dial and speak trigger")
     p.add_argument("--hangup-after", type=int, default=0,
@@ -165,6 +210,31 @@ def main():
             print("OK - dial=" + str(record["dial"]["ok"]) + " speak=" + str(record["speak"]["ok"]))
         else:
             print("FAIL - dial=" + str(record.get("dial")) + " speak=" + str(record.get("speak")))
+
+    # SMS fallback — ONLY if user opted in AND speak failed.
+    if args.with_sms_fallback and not speak_ok:
+        log.info("Speak failed and --with-sms-fallback set; trying SMS")
+        sms_bin = f"{_HOME}/bin/paired-sms-send"
+        try:
+            sms_body = args.message[:300] + ("..." if len(args.message) > 300 else "")
+            sproc = subprocess.run(
+                [sms_bin, "--auto-unlock", "--relock", args.number, sms_body],
+                capture_output=True, text=True, timeout=90,
+            )
+            record["sms_fallback"] = {
+                "attempted": True,
+                "ok": sproc.returncode == 0,
+                "info": (sproc.stdout or sproc.stderr or "")[:200],
+            }
+            log.info("SMS fallback rc=" + str(sproc.returncode))
+        except Exception as e:
+            record["sms_fallback"] = {"attempted": True, "ok": False,
+                                      "info": "exec failed: " + str(e)}
+    elif not args.with_sms_fallback and not speak_ok:
+        log.info("Speak failed; --with-sms-fallback NOT set; not sending SMS")
+        record["sms_fallback"] = {"attempted": False,
+                                  "reason": "opt-in flag not provided"}
+
     return 0 if record["ok"] else 1
 
 

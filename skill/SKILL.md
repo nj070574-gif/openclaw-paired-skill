@@ -1,13 +1,64 @@
 ---
 name: paired
 description: Bridge an OpenClaw agent to the user's own phone via Bluetooth and ADB-over-USB. Provides SMS receive (MAP/MNS), SMS send (ADB autosend), outgoing calls (HFP), incoming-call alerts, contacts pull (PBAP), media control (AVRCP), file transfer (OBEX), and PAN tethering — all driving the user's actual paired phone. Zero recurring cost, no Twilio/Telnyx/Vapi, no rented numbers. Triggers on phrases like "send SMS", "text someone", "call my phone", "make a call", "what's on my phone", "my contacts", "phone contacts", "play music", "pause", "next track", "send file to phone", "tether", "paired devices", "is my phone connected", "Bluetooth", "BT", "/sms", "/phone", "ofono", "AVRCP", "MAP". Configuration lives in ~/.config/paired/paired.conf (phone MAC, adapter, trusted numbers list). Always read the config before acting; never hardcode phone identifiers.
+capabilities:
+  - sends-sms
+  - places-phone-calls
+  - reads-sms
+  - reads-contacts
+  - reads-clipboard
+  - controls-mobile-device-via-adb
+  - unlocks-mobile-device-with-stored-pin
+  - bluetooth-pairing-agent
+  - relays-to-external-channel-telegram
+  - executes-sudo-commands
+  - persistent-systemd-services
+requires:
+  config:
+    - path: ~/.config/paired/paired.conf
+      purpose: phone MAC, adapter, trusted numbers list
+    - path: ~/.config/paired/trusted-numbers.conf
+      purpose: allowlist for high-impact outgoing actions (calls, SMS sends)
+    - path: ~/.config/paired/pin
+      purpose: phone unlock PIN (mode 0600 enforced) — OPTIONAL, only if --auto-unlock used
+      sensitive: true
+  system_packages:
+    - bluez
+    - ofono
+    - android-tools-adb
+    - systemd
+  external_services:
+    - telegram (optional, for command vocabulary and incoming-call/SMS alerts)
+  python_packages:
+    - dbus-python
+safety:
+  scope: owner-operated
+  network_access: bluetooth-LAN-only-plus-user-own-telegram
+  credential_handling: user-supplied-only-no-hardcoded-fallbacks
+  high_impact_actions:
+    - all SMS sends require trusted-numbers allowlist OR explicit --confirm
+    - all outbound calls require trusted-numbers allowlist OR explicit --confirm
+    - phone unlock requires --auto-unlock flag explicitly per invocation
+    - pairing-agent default mode is interactive (auto mode requires explicit --mode auto)
+  notes: |
+    This skill controls the user's real phone. It is intended for use on a Linux
+    host that the user owns, paired to a phone the user owns, with Telegram bot
+    credentials the user controls. It is not safe to expose any of these channels
+    to untrusted parties. The trusted-numbers allowlist gates outgoing SMS/calls;
+    keep it short and review it regularly.
 ---
 
 ## Execution context
 
-You are running on a Linux host with BlueZ + ofono installed and a phone paired over Bluetooth. The 38 underlying tools live at `~/bin/bt-*` (low-level BlueZ/ofono/ADB primitives) and `~/bin/paired-*` (high-level wrappers exposing JSON-clean interfaces designed for agents to call).
+You are running on a Linux host with BlueZ + ofono installed and a phone paired over Bluetooth. The skill ships:
 
-Run commands directly via bash. Do not answer from documentation — execute the tools and report what they actually returned.
+- **Low-level primitives** at `skill/bin/bt-*` — BlueZ/ofono/ADB direct interfaces
+- **High-level wrappers** at `skill/wrappers/paired-*` — JSON-clean interfaces designed for agents to call
+- **Systemd unit files** at `skill/systemd/*.service` — for persistent listeners (SMS push, call watch, command hook)
+
+When reasoning about a phone task, prefer the high-level `paired-*` wrappers — they handle trust checks, error formatting, and JSON output. Drop to `bt-*` only for diagnostic or low-level work.
+
+**Acting on the world vs. answering questions:** for status queries ("is my phone connected?", "any new SMS?"), running the tool and reporting the result is the right call. For high-impact actions (sending SMS, dialling calls, pairing new devices, unlocking the phone), confirm with the user first unless the request is unambiguous and the destination is on the trusted-numbers allowlist.
 
 **Phone identity comes from `~/.config/paired/paired.conf`**, key `phone_bt_mac`. If a command needs the phone's MAC, read it from the config rather than asking the user. If the config is missing, tell the user to copy `paired.conf.example` and fill in the MAC.
 
@@ -76,20 +127,37 @@ Real-time incoming-call alerts run as a systemd user service (`paired-call-watch
 
 ### Phone — Telegram command vocabulary (deterministic, bypasses LLM)
 
-`paired-sms-command-hook.service` parses the latest agent session JSONL and dispatches recognised commands without invoking the LLM:
+`paired-sms-command-hook.service` reads commands from a dedicated, append-only inbox at `~/.openclaw/paired/inbox/` (NOT from raw agent session logs — see Security model below) and dispatches recognised commands without invoking the LLM:
 
 | Telegram command | Action | Trust check | Underlying call |
 |---|---|---|---|
-| `/sms <num> <body>` | Send SMS via ADB | none | `paired-sms-send` |
-| `/phone <num>` | Dial outbound | none | `paired-call dial` |
-| `/phone <num> <msg>` | Dial + speak via Tasker TTS, **+ SMS fail-soft** | trusted only | `paired-call-and-speak` then `paired-sms-send` |
-| `/phone <num> attach <path>` | Dial + speak file content | trusted only | as above |
+| `/sms <num> <body>` | Send SMS via ADB | **trusted-numbers allowlist required** (or `--confirm`) | `paired-sms-send` |
+| `/phone <num>` | Dial outbound | **trusted-numbers allowlist required** (or `--confirm`) | `paired-call dial` |
+| `/phone <num> <msg>` | Dial + speak via Tasker TTS, optional SMS fallback | **trusted-numbers allowlist required** | `paired-call-and-speak` |
+| `/phone <num> attach <path>` | Dial + speak file content | **trusted-numbers allowlist required** | as above |
 | `/phone hangup` (or `/phone end`) | End all active calls | none | `paired-call hangup` |
 | `/phone status` | Active call state | none | `paired-call status` |
 
-Trusted list at `~/.config/paired/trusted-numbers.conf` — managed via `~/bin/paired-trusted add | remove | list`. UK number normalization: `+44`, `0044`, `44`, and `07` formats all match the same entry.
+Trusted list at `~/.config/paired/trusted-numbers.conf` — managed via `~/bin/paired-trusted add | remove | list`. UK number normalization: `+44`, `0044`, `44`, and `07` formats all match the same entry. **An empty trusted-numbers file blocks all outgoing SMS and calls except for explicit `--confirm` invocations.** This is the safe default — fill the file in deliberately.
 
-**Why SMS fail-soft on `/phone <num> <msg>`:** TTS during calls is blocked on some phone firmware (notably Samsung — see "Known phone-side limits" below). The hook always also fires an SMS with the same content so the recipient is guaranteed to get the message even if they don't hear it. Telegram reply notes "📨 SMS fail-soft: delivered" so the user knows.
+**SMS fallback for `/phone <num> <msg>`:** TTS during calls is blocked on some phone firmware (notably Samsung — see "Known phone-side limits" below). When TTS-during-call fails, the wrapper *can* also send an SMS with the same body so the recipient still gets the message. This is **opt-in per invocation** — pass `--with-sms-fallback` to enable it. Without that flag, a TTS failure returns an error and the wrapper does not send any SMS. The Telegram reply notes the chosen behaviour explicitly: "📞 TTS only" or "📞 TTS + 📨 SMS fallback (best-effort)".
+
+### Security model (read this before enabling persistent services)
+
+This skill runs **persistent systemd services** that can dispatch phone actions automatically:
+
+- `paired-sms-watch.service` — listens for incoming SMS (via Bluetooth MAP-MNS), forwards alerts to Telegram. Read-only with respect to the phone.
+- `paired-call-watch.service` — listens for incoming calls (via ofono D-Bus), forwards alerts to Telegram. Read-only.
+- `paired-sms-command-hook.service` — reads command messages from `~/.openclaw/paired/inbox/`, dispatches recognised commands. **This is the surface that can act.** It accepts commands ONLY from a directory the user controls, with a per-message HMAC signature using a secret in `~/.config/paired/inbox.key` (mode 0600). Commands from any other source — raw session logs, the agent's chat memory, an SMS body, etc. — are NOT dispatched.
+
+**Why the inbox model:** earlier versions of this skill parsed the agent's session JSONL log directly. That made the session log a control surface — anything that landed in it (including unfiltered text from incoming SMS/calls) was a potential command source. The inbox model isolates the dispatch surface to messages the user (or a trusted bot relay) explicitly drops into the inbox dir, signed with the inbox key.
+
+**To stop all persistent services in one go:**
+
+```bash
+systemctl --user stop paired-sms-watch paired-call-watch paired-sms-command-hook
+systemctl --user disable paired-sms-watch paired-call-watch paired-sms-command-hook
+```
 
 ### Phone — contacts (PBAP)
 
