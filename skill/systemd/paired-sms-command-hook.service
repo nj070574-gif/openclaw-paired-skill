@@ -1,0 +1,19 @@
+[Unit]
+Description=Deterministic /sms command hook (bypasses Agent's LLM)
+Documentation=file://${HOME}/bt-skill-expansion/RESUME-HERE.md
+After=openclaw.service network.target
+Wants=openclaw.service
+StartLimitIntervalSec=60
+StartLimitBurst=6
+
+[Service]
+Type=simple
+ExecStart=${HOME}/bin/paired-sms-command-hook --watch
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

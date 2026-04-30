@@ -1,0 +1,94 @@
+# paired.conf — Paired skill configuration template
+#
+# Copy to ~/.config/paired/paired.conf, edit, then run `paired-trusted list` to verify.
+# All keys are optional — sensible defaults documented per key.
+#
+# Setup tips:
+#   - Find your phone's BT MAC:    bt-list --paired
+#   - Find your hci adapter:       bt-adapters
+#   - Telegram chat ID:            already in OpenClaw config — paired reads it from there
+
+# === Phone identity ===
+# The Bluetooth MAC of the phone you've paired. Required for everything except
+# generic discovery (bt-list --scan etc).
+#
+# REQUIRED.
+phone_bt_mac = AA:BB:CC:DD:EE:FF
+
+# Friendly display name (used only in Telegram alerts and log lines).
+phone_label = My Phone
+
+# === Bluetooth adapter ===
+# Which HCI adapter to use. Run `bt-adapters` to see what's available.
+# Default: hci0
+adapter = hci0
+
+# === Data directory ===
+# Where paired stores its event logs, MNS cache, sms-events.jsonl, call-events.jsonl.
+# Default: ~/.paired/
+data_dir = ~/.paired
+
+# === LLM trigger phrase (optional showcase feature) ===
+# When an SMS arrives whose body starts with this phrase (from a trusted number),
+# paired-respond invokes Gemini/your configured LLM to draft a reply, then sends
+# it to your Telegram chat as a tap-to-copy /sms command.
+#
+# The phrase is matched case-insensitively and the trailing comma is optional.
+# Set to empty string ("") to disable the feature entirely.
+#
+# Default: "Hi Agent,"
+llm_trigger = Hi Agent,
+
+# Whitelist of numbers allowed to trigger the LLM responder. UK normalization:
+# entries like "07911123456", "+447911123456", "447911123456" all match the same.
+# Empty list = LLM trigger disabled even if llm_trigger phrase matches.
+#
+# Default: empty
+llm_trigger_whitelist =
+
+# === Auto-unlock (opt-in, security-sensitive) ===
+# If set to true, paired-sms-send will dismiss the lock screen using a PIN
+# stored at ~/.config/paired/pin (mode 0600 enforced). After sending, --relock
+# locks the phone again.
+#
+# SECURITY WARNING: storing your phone PIN on this host means anyone with
+# read access to ~/.config/paired/pin can unlock your phone via ADB. Only
+# enable on a host you fully control.
+#
+# Default: false (opt-in only)
+auto_unlock = false
+
+# === Telegram chat ID for owner alerts ===
+# READ-ONLY HINT: paired reads this from openclaw.json[env].TELEGRAM_OWNER_CHAT_ID
+# at runtime — you do NOT set it here. This block is informational only.
+#
+# To set it: edit ~/.openclaw/openclaw.json and add to the env block:
+#   "env": {
+#     "TELEGRAM_OWNER_CHAT_ID": "123456789"
+#   }
+# Then restart openclaw.service.
+
+# === Logging ===
+# Levels: DEBUG, INFO, WARNING, ERROR
+# Default: INFO
+log_level = INFO
+
+# === SMS hook trigger ===
+# Whether to enable the deterministic Telegram /sms NUMBER text command parser.
+# This bypasses the LLM and dispatches directly to paired-sms-send.
+# Default: true
+sms_command_hook = true
+
+# === Call handler defaults ===
+# What to do when an incoming call arrives from a NON-trusted number:
+#   - notify   : send Telegram alert only (default)
+#   - ignore   : silent
+#   - hangup   : auto-reject the call
+# Default: notify
+incoming_untrusted_action = notify
+
+# What to do for a TRUSTED number:
+#   - notify   : Telegram alert only (default — you decide whether to act)
+#   - notify_and_speak : also fire paired-call-and-speak with a default greeting
+# Default: notify
+incoming_trusted_action = notify

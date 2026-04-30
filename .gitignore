@@ -1,0 +1,71 @@
+# === Build / runtime artefacts ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# === Backup files ===
+*.bak
+*.bak.*
+*.v1.*
+
+# === Local config (NEVER commit) ===
+# Users copy *.example → real file; real files stay local
+paired.conf
+trusted-numbers.conf
+pin
+*.key
+*.pem
+*.token
+
+# === Logs and runtime data ===
+*.log
+*.jsonl
+*.db
+*.sqlite
+*.sqlite3
+.paired/
+bt-skill-expansion/
+sms-events.jsonl
+call-events.jsonl
+sms-cmd-hook.log
+call-handler.log
+respond-cooldown.db
+
+# === IDE / editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === OS detritus ===
+.~lock.*
+
+# === Phase 1/2/3 working artefacts (private to repo author) ===
+source-raw/
+source-scrubbed/
+SCRUB-MAP.md
+PHASE1-*.md
+PHASE2-SCRUB-REPORT.md
+PHASE3-*.md
+fix-paths.py
+*.tar.gz
+
+# === Test outputs ===
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# === Virtual envs ===
+.venv/
+venv/
+env/
+
+# === Distribution ===
+dist/
+build/
+*.egg-info/
