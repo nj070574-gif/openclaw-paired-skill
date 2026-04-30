@@ -4,6 +4,18 @@ All notable changes to the Paired skill are documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-04-30 — Security fix
+
+### Security
+
+- **Removed hardcoded sudo password fallback** in `skill/bin/bt-recover.py` and `skill/bin/bt-pan.py`. Earlier versions read `os.environ.get("SUDO_PASS", "<literal>")` with a non-empty default — the literal was a developer credential that should never have shipped. v1.0.1 removes the default entirely; the functions now use `sudo -n` (non-interactive, fails fast if no rule exists) when `SUDO_PASS` is unset, or `sudo -S` only when the user explicitly provides one via env.
+- **Updated documentation** in both files to recommend passwordless sudo rules via `/etc/sudoers.d/` for the small set of commands these tools invoke (`rfkill`, `systemctl`, `hciconfig`, `ip`, `dhclient`).
+- **No code path requiring the leaked default existed** — `SUDO_PASS` was already documented as the configured way to provide credentials. The default was a leftover from local development.
+
+### Action required for v1.0.0 users
+
+If you installed `paired@1.0.0` and ran `bt-recover` or `bt-pan` without setting `SUDO_PASS`, your scripts attempted to authenticate sudo with the literal default. Update to v1.0.1 (`clawhub update paired`) and set up either a passwordless-sudo rule (recommended) or `SUDO_PASS` in your environment.
+
 ## [1.0.0] — 2026-04-29
 
 Initial public release.
