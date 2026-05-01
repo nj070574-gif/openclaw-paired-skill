@@ -4,6 +4,15 @@ All notable changes to the Paired skill are documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.0.7] — 2026-04-30 — README: "About the security scanner rating" section
+
+### Documentation
+
+- New top-of-README section explains why ClawScan rates the skill `Review` and VirusTotal Code Insight (PaLM) flags it `suspicious`, and what's been done to make it safe to install regardless. Modelled on the equivalent section in the openclaw-magento-skill README. The intent is to meet users at the point where they see the warning and explain the reasoning before they have to ask.
+- README badge added: `ClawScan: Review (by design)`.
+
+No code changes from v1.0.6. Identical 57-file artifact.
+
 ## [1.0.6] — 2026-04-30 — Display name encoding fix
 
 ### Fixed

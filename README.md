@@ -8,6 +8,37 @@
 [![ClawHub](https://img.shields.io/badge/ClawHub-paired-orange)](https://clawhub.ai/paired)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-2026.4%2B-blue)](https://openclaw.ai)
 [![Linux](https://img.shields.io/badge/Linux-BlueZ%20%2B%20ofono-success)](#prerequisites)
+[![Scanner: Review](https://img.shields.io/badge/ClawScan-Review%20(by%20design)-yellow)](#about-the-security-scanner-rating)
+
+---
+
+## About the security scanner rating
+
+**ClawScan rates this skill `Review` and VirusTotal Code Insight (PaLM) flags it `suspicious`. This is expected and correct — it is not a sign of malware or malicious intent.**
+
+Paired is, by design, a high-capability tool. Any honest static analysis of what the skill does will produce a high-risk rating. The Code Insight verdict on v1.0.6 lays out the reasoning plainly: *"executing sudo commands ... maintaining persistent systemd services, and full control over a mobile device via ADB ... [these create] a significant attack surface, although no clear evidence of intentional malice was found."* That summary is accurate. Each capability is documented, declared in the SKILL.md frontmatter, and gated by the safeguards described below.
+
+**What the skill genuinely does:**
+
+- Runs sudo for `bt-recover` (BlueZ daemon recovery) and `bt-pan` (NAP/PAN network bridge setup). These specifically need root on Linux.
+- Maintains persistent systemd user services for SMS push (MAP-MNS), incoming-call watch (ofono D-Bus), and the HMAC-signed inbox command dispatcher.
+- Controls your paired phone via ADB — including, optionally, screen unlock with a stored PIN if you explicitly enable `--auto-unlock`.
+- Sends SMS, places calls, reads contacts, and accesses Bluetooth profiles (MAP, PBAP, HFP, AVRCP, OBEX, PAN).
+
+**What's done to make this safe to install:**
+
+- **Trusted-numbers allowlist** gates all outgoing SMS and calls (both via wrappers and the low-level `bt-call.py` primitive since v1.0.4). An empty list blocks everything except explicit `--confirm` invocations.
+- **HMAC-signed command inbox** (since v1.0.2) replaces the v1.0.0 design that read commands from agent session logs — commands now require a signature with a key only you control (`~/.config/paired/inbox.key`, mode 0600).
+- **Pairing-agent default is interactive** (since v1.0.2). Wide-open auto-pairing requires explicit `--mode auto --i-mean-it`.
+- **SMS fallback is opt-in** (since v1.0.2). When TTS-during-call fails, no automatic SMS is sent unless `--with-sms-fallback` is explicitly passed.
+- **No credential harvesting** (since v1.0.5). Earlier versions read `/proc/<pid>/environ` to reuse the OpenClaw process's Gemini API key. That mechanism was correctly flagged by VirusTotal Code Insight as a malware-style pattern; v1.0.5 removed it. Keys now come from `~/.config/paired/gemini-keys.conf` (mode 0600 enforced).
+- **No hardcoded secrets**, no hardcoded device identifiers (since v1.0.3), no plaintext credentials in the package.
+- **PIN auto-unlock is fully opt-in.** The `~/.config/paired/pin` file is enforced mode 0600 and only consulted when `--auto-unlock` is passed. Default config has it off.
+- **Capabilities declared explicitly** in the SKILL.md frontmatter under `capabilities`, `requires`, and `safety` blocks — the user (and any reviewing scanner) sees the full list of what the skill can do before installation.
+
+**The scanner is doing its job.** A scanner that rated `paired` as Clean would either be ignoring what it does or rubber-stamping high-impact tools. The `Review` verdict on v1.0.6 is a downgrade from the `Suspicious` rating on v1.0.4, reflecting that all the *fixable* findings (credential harvesting, missing wrappers, untrusted dispatch surface) have been addressed. What remains — sudo, persistent services, ADB control — is the skill itself.
+
+For the per-finding history of what the scanner flagged and how it was addressed across v1.0.0 → v1.0.6, see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
