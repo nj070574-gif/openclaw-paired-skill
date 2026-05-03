@@ -4,6 +4,18 @@ All notable changes to the Paired skill are documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.0.8] — 2026-05-03 — Fix: SMS compose detection on Samsung Messages 11.5.x
+
+### Fixed
+
+- **`wrappers/paired-sms-send.py` `wait_for_compose()` now detects the compose UI by package focus + uiautomator resource-ids instead of the obsolete `ConversationComposer` activity name.** Samsung Messages 11.5.x renamed the focused activity from `ConversationComposer` to `WithActivity`, which made the legacy substring check return `False` on every poll. Result: every `/sms NUMBER body` invocation aborted with `error=compose_did_not_appear` after the unlock and intent stages had already succeeded — to the user it looked like nothing happened. The new detection checks that `mCurrentFocus` is owned by `com.samsung.android.messaging` AND a uiautomator dump contains both `composer_root_view` and `message_edit_text` resource-ids. Both markers are stable across the 11.5 activity rename.
+- The check writes a temp dump to `/sdcard/_paired_compose_check.xml` (distinct from `/sdcard/_paired_ui.xml` used by the send-button locator) so the two phases don't overwrite each other's state.
+
+### Notes
+
+- Verified end-to-end on a locked Note 9 / OneUI 12 / Messages 11.5.50.71: `wake → keyguard locked → auto_unlock OK → intent → compose_visible: true → send_button found → tapped → verified in Sent → screen off → relocked: true`.
+- No other code changes. Wrappers, systemd units, and config templates are byte-identical to v1.0.7.
+
 ## [1.0.7] — 2026-04-30 — README: "About the security scanner rating" section
 
 ### Documentation

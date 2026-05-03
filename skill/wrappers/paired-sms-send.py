@@ -5,7 +5,7 @@ Workflow:
   1. Wake screen if dozing
   2. Verify keyguard is dismissed (Bouncer means PIN required - we abort)
   3. Open Samsung Messages with Intent (number + body pre-filled)
-  4. Wait for ConversationComposer to be in focus
+  4. Wait for the Messages compose UI to be visible
   5. Locate the Send button via uiautomator dump (resource-id send_button1)
   6. Tap Send
   7. Confirm send by checking sent-folder
@@ -147,12 +147,38 @@ def open_compose(number: str, body: str) -> tuple[bool, str]:
 
 
 def wait_for_compose(timeout: float = 5.0) -> bool:
-    """Poll dumpsys until ConversationComposer is in focus."""
+    """Poll until the Messages compose UI is visible.
+
+    Samsung Messages 11.5.x renamed the focused activity from
+    ConversationComposer to WithActivity, so the legacy focus-string
+    check fails on current firmware. We now confirm compose is visible
+    by checking that the Messages package owns the focused window AND a
+    uiautomator dump contains the composer_root_view + message_edit_text
+    resource-ids - both stable across the version change.
+    """
     deadline = time.time() + timeout
     while time.time() < deadline:
         rc, out, _ = adb_shell("dumpsys window")
-        if rc == 0 and "ConversationComposer" in out and MESSAGES_PKG in out:
-            return True
+        if rc == 0 and MESSAGES_PKG in out:
+            focus = re.search(
+                r"mCurrentFocus=Window\{[^}]*" + re.escape(MESSAGES_PKG) + r"[^}]*\}",
+                out,
+            )
+            if focus:
+                rc2, _, _ = adb_shell(
+                    "uiautomator dump --compressed /sdcard/_paired_compose_check.xml",
+                    timeout=5,
+                )
+                if rc2 == 0:
+                    rc3, xml, _ = adb_shell(
+                        "cat /sdcard/_paired_compose_check.xml"
+                    )
+                    if (
+                        rc3 == 0
+                        and "composer_root_view" in xml
+                        and "message_edit_text" in xml
+                    ):
+                        return True
         time.sleep(0.3)
     return False
 
