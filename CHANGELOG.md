@@ -4,6 +4,14 @@ All notable changes to the Paired skill are documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.0.9] — 2026-05-03 — Fix: display name reverted to canonical
+
+### Fixed
+
+- Display name on the ClawHub registry was auto-derived from the publish staging directory basename during the v1.0.8 publish (became `"Paired Publish V108 225554313"`). The clawhub CLI uses the directory name as the default display name when `--name` is omitted, even on republish. Re-published v1.0.9 with `--name` explicitly set to `Paired — Bluetooth Phone Bridge` to restore the canonical name.
+
+No code changes from v1.0.8. Identical 57-file artifact. Tag added so the GitHub release history matches the ClawHub version timeline.
+
 ## [1.0.8] — 2026-05-03 — Fix: SMS compose detection on Samsung Messages 11.5.x
 
 ### Fixed
