@@ -2,7 +2,17 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.10] — 2026-05-15 — Fix: command-hook glob bug + hardware docs
+
+### Fixed
+
+- **`wrappers/paired-sms-command-hook.py` `latest_session_path()` glob bug** — the function used `SESSIONS_DIR.glob("*.jsonl")` which also matches OpenClaw's `*.trajectory.jsonl` files (much larger, written more frequently). `max(...key=mtime)` would flip the hook between the real session file and the trajectory file. Every file-switch set `last_offset = st_size`, silently dropping any unread content. End-user symptom: `/sms` and `/phone` commands appeared to be ignored — the user message landed in `session.jsonl` while the hook was tracking `trajectory.jsonl`, and by the time the hook returned, its offset was past the message. Bug present since v1.0.0. Fix is one line: exclude trajectory files from the glob.
+- Verified end-to-end on 2026-05-15 against a Note 9 install on Debian 13 + OpenClaw 2026.5.12: pre-fix, a `/sms` command in Telegram reached the agent unintercepted and got an "I don't have a tool for that" response; post-fix the same command dispatched correctly via the hook and the SMS arrived at the recipient.
+
+### Documentation
+
+- **Hardware compatibility doc updated** — corrected USB ID for RTL8761B (now lists both `0bda:a760` and `0bda:8771` — both are valid IDs depending on the dongle generation), added empirical verification line (Debian 13 / kernel 6.12.85 / BlueZ 5.82, LE scan: 27 unique advertisers in 5s), added an explicit ⚠ AVOID entry for the **TP-Link UB600 ("BT 6.0 Nano", `37ad:0600`)**: marketed as BT 6.0 but actually reports HCI 5.1, and `hcitool lescan` fails with "Set scan parameters failed: I/O error" on the same kernel/BlueZ where vanilla Realtek dongles work cleanly. Same-port swap test isolated this to the device, not the host. README compatibility table updated to match.
+- **Recommendation for new buyers**: vanilla `0bda:`-prefixed Realtek RTL8761B / RTL8761BU dongles are the safe drop-in. Avoid sub-vendor rebadges with marketing claims that exceed BT 5.1.
 
 ## [1.0.9] — 2026-05-03 — Fix: display name reverted to canonical
 

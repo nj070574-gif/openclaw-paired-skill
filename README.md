@@ -100,8 +100,9 @@ Tested combinations — see [docs/HARDWARE-COMPATIBILITY.md](docs/HARDWARE-COMPA
 
 | Bluetooth adapter | Type | Status |
 |---|---|---|
-| BCM43142A0 | Internal BT 4.0 | All features working |
-| RTL8761B | USB BT 5.1 | All features working (drop-in via `--adapter hci1`) |
+| BCM43142A0 (`0a5c:216f`) | Internal BT 4.0 | All features working |
+| RTL8761B / RTL8761BU (`0bda:a760`, `0bda:8771`) | USB BT 5.1 | ✅ All features working — recommended dongle |
+| TP-Link UB600 (`37ad:0600`) | USB rebadge of Realtek BT 5.1 | ⚠ AVOID — LE scan broken on Linux 6.12 — see [HARDWARE-COMPATIBILITY.md](docs/HARDWARE-COMPATIBILITY.md) |
 
 Have a working setup we haven't tested? **[Open a hardware compatibility report](https://github.com/nj070574-gif/openclaw-paired-skill/issues/new?template=hardware_report.md)** — every confirmed combination helps the next person.
 
