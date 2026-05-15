@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """paired-call-and-speak - Dial a number, then speak a message via Tasker.
 
-Architecture (v2.1 - intent-broadcast path + opt-in SMS fallback):
-  1. Dial <number> via paired-call dial
-  2. Wait for the call to ring/connect (configurable delay)
-  3. Fire ADB intent broadcast: net.dinglisch.android.tasker.PAIRED_TRIGGER
+Architecture (v2.2 - audio preset + intent-broadcast path + opt-in SMS fallback):
+  1. Apply audio settings preset on phone (idempotent, --no-preset to skip).
+     Empirically verified to substantially reduce echo/muffle for recipient.
+       volume_voice_speaker = 5  (max speaker voice volume)
+       call_extra_volume    = 0  (no overdrive — less distortion)
+       call_noise_reduction = 0  (NR off — clearer TTS for recipient)
+     These are persistent system settings; preset re-applies each call so
+     a manual change on the phone is auto-corrected.
+  2. Dial <number> via paired-call dial
+  3. Wait for the call to ring/connect (configurable delay)
+  4. Fire ADB intent broadcast: net.dinglisch.android.tasker.PAIRED_TRIGGER
      with par1 = the message to speak.
-  4. Tasker on the phone catches the Intent Received event and runs the
+  5. Tasker on the phone catches the Intent Received event and runs the
      "Agent Speak Now" task, which speaks par1 via Stream 5 (Voice Call)
      so the cellular caller hears it.
-  5. (OPT-IN) If --with-sms-fallback is passed AND the speak step failed,
+  6. (OPT-IN) If --with-sms-fallback is passed AND the speak step failed,
      also send the same message body as an SMS so the recipient still gets
      it. This is OFF by default — v1.0.2 made the fallback explicit per
      OpenClaw scanner finding #5 (Cascading Failures).
@@ -18,7 +25,7 @@ Validated working 2026-04-28 incl. cold state with screen off >30s.
 
 Usage:
   paired-call-and-speak <recipient_number> <message_text>
-                        [--no-call] [--json] [--with-sms-fallback]
+                        [--no-call] [--json] [--with-sms-fallback] [--no-preset]
 """
 from __future__ import annotations
 import argparse
@@ -81,6 +88,54 @@ logging.basicConfig(
 )
 log = logging.getLogger()
 
+
+# Verified-good audio settings preset (Note 9 / Android 10 / EE network — 2026-05-15)
+# Substantially reduces echo/muffle for the recipient.
+AUDIO_PRESET = {
+    "volume_voice_speaker":  "5",
+    "call_extra_volume":     "0",
+    "call_noise_reduction":  "0",
+}
+
+
+def apply_audio_preset(adb_device):
+    """Apply the verified-good audio settings on the phone.
+
+    Idempotent — re-applies on every call so any manual change made by the
+    user via the phone UI is corrected. Returns a dict of {key: result} for
+    logging.
+    """
+    if not adb_device:
+        return {"error": "no adb device available; preset skipped"}
+
+    results = {}
+    for key, val in AUDIO_PRESET.items():
+        try:
+            put = subprocess.run(
+                ["adb", "-s", adb_device, "shell", f"settings put system {key} {val}"],
+                capture_output=True, text=True, timeout=10,
+            )
+            get = subprocess.run(
+                ["adb", "-s", adb_device, "shell", f"settings get system {key}"],
+                capture_output=True, text=True, timeout=10,
+            )
+            current = (get.stdout or "").strip()
+            results[key] = {
+                "target": val,
+                "current": current,
+                "ok": current == val,
+            }
+            if current == val:
+                log.info(f"preset {key}={val} OK")
+            else:
+                log.warning(f"preset {key} wanted={val} got={current}")
+        except subprocess.TimeoutExpired:
+            results[key] = {"target": val, "ok": False, "error": "adb timeout"}
+            log.warning(f"preset {key} adb timeout")
+        except Exception as e:
+            results[key] = {"target": val, "ok": False, "error": str(e)}
+            log.warning(f"preset {key} error: {e}")
+    return results
 
 def run_call_dial(number, timeout=25):
     try:
@@ -145,6 +200,8 @@ def main():
     p.add_argument("--with-sms-fallback", action="store_true",
                    help="Opt-in: if TTS fails, send the same body as an SMS "
                         "(best-effort, not a guarantee). Off by default.")
+    p.add_argument("--no-preset", action="store_true",
+                   help="Skip applying the audio settings preset (volume/extra-volume/NR) before dialling")
     p.add_argument("--ring-wait", type=int, default=RING_WAIT_SECONDS,
                    help="Seconds between dial and speak trigger")
     p.add_argument("--hangup-after", type=int, default=0,
@@ -165,10 +222,18 @@ def main():
         "number": args.number,
         "message": args.message,
         "no_call": args.no_call,
+        "preset": None,
         "dial": None,
         "speak": None,
         "ok": False,
     }
+
+    if not args.no_preset:
+        log.info("Applying audio preset...")
+        record["preset"] = apply_audio_preset(_load_adb_device())
+    else:
+        log.info("--no-preset: skipping audio preset")
+        record["preset"] = "skipped"
 
     if not args.no_call:
         dial_ok, dial_info = run_call_dial(args.number)
