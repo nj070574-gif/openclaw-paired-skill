@@ -70,13 +70,24 @@ Bluetooth on iOS is intentionally locked down to the level needed for AirPods + 
 - **Status**: ✅ all features working
 - **Quirks**: occasionally needs a USB reset (`bt-recover`) after long suspend cycles. The 10-check `bt-test` will catch this — adapter shows MAC `00:00:00:00:00:00` when in this state.
 
-### RTL8761B (USB dongle, USB ID `0bda:8771`)
+### RTL8761B / RTL8761BU (USB dongle, common IDs include `0bda:a760` and `0bda:8771`)
 
 - **BT version**: 5.1
 - **Vendor**: Realtek
 - **Common in**: cheap aftermarket USB dongles (£8–15 on Amazon)
 - **Status**: ✅ all features working — drop-in via `--adapter hci1`
-- **Quirks**: the firmware blob `rtl_bt/rtl8761bu_fw.bin` must be present in `/lib/firmware/` (Debian package: `firmware-realtek`). Without it the adapter loads but fails to power on.
+- **Verified**: 2026-05 on Debian 13 + kernel 6.12.85 + BlueZ 5.82. LE scan returned 27 unique advertisers in a 5-second sweep. Classic inquiry, pairing, MAP, OBEX, AVRCP all green.
+- **Firmware**: needs `rtl_bt/rtl8761bu_fw.bin` and `rtl_bt/rtl8761bu_config.bin` in `/lib/firmware/` — provided by Debian package `firmware-realtek` (≥ 20210818) or upstream `linux-firmware` git. Without these the adapter loads but fails to power on. Confirm with `dmesg | grep btrtl` after plug — should see `loading rtl_bt/rtl8761bu_fw.bin`.
+- **Recommended**: this is the safe bet — vanilla Realtek silicon with a clean upstream Linux driver path.
+
+### ⚠ AVOID: TP-Link UB600 ("BT 6.0 Nano", USB ID `37ad:0600`)
+
+- **Marketed as**: Bluetooth 6.0
+- **Actually reports**: HCI 5.1 / LMP 5.1 — same generation as the RTL8761B above, no BT6 features
+- **Status**: ⚠ partial — pairing and connection work, but **`hcitool lescan` fails with "Set scan parameters failed: Input/output error"** on Linux 6.12 / BlueZ 5.82
+- **Symptom**: BLE recon (`bt-gatt-tree`, `paired-ble-watch`) returns nothing, even when devices are advertising
+- **Root cause**: sub-vendor `37ad` rebadge of Realtek silicon with TP-Link's own firmware variant. The vanilla Realtek driver doesn't recognise the sub-vendor ID cleanly, and the firmware path the device exposes appears to skip the LE-scan-parameter table the kernel needs.
+- **Recommendation**: if you see this PID in `lsusb`, replace with a vanilla `0bda:`-prefixed Realtek dongle. Same price point, full functionality. The "BT 6.0" marketing claim is also factually wrong — the silicon underneath is BT 5.1.
 
 ### Adapters not yet tested but expected to work
 

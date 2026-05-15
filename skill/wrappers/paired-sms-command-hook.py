@@ -156,7 +156,7 @@ def latest_session_path() -> Path | None:
     """Find the most recently modified session JSONL."""
     if not SESSIONS_DIR.exists():
         return None
-    candidates = list(SESSIONS_DIR.glob("*.jsonl"))
+    candidates = [c for c in SESSIONS_DIR.glob("*.jsonl") if not c.name.endswith(".trajectory.jsonl")]
     if not candidates:
         return None
     return max(candidates, key=lambda p: p.stat().st_mtime)
