@@ -2,6 +2,12 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.11] — 2026-05-15 — Add: audio settings preset for call-and-speak
+
+### Added
+
+- **`wrappers/paired-call-and-speak.py` v2.2: audio settings preset** — auto-applies a Samsung-verified-good audio preset (`volume_voice_speaker=5`, `call_extra_volume=0`, `call_noise_reduction=0`) on the phone before dialling. Empirically reduces echo/muffle for the recipient by a large margin during TTS-over-cellular calls. Preset is idempotent — re-applies on every call so any manual UI change on the phone gets auto-corrected. Off-switchable via `--no-preset`. Validated against Note 9 on Android 10 / OneUI 12 / EE network across 13 progressive test calls (clear recipient audio with minimal echo when both phones are physically separated). Pre-v2.2 behaviour was reliant on whatever the phone's current settings happened to be — which on Samsung defaults to `volume_voice_speaker=1` (very quiet) and active noise reduction (which distorts synthesised TTS).
+
 ## [1.0.10] — 2026-05-15 — Fix: command-hook glob bug + hardware docs
 
 ### Fixed
