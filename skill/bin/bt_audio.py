@@ -39,7 +39,7 @@ def _pwcli(*args: str) -> str:
 
 
 def mac_to_bluez_name_fragment(mac: str) -> str:
-    """C0:10:61:16:75:50 -> C0_10_61_16_75_50  (PipeWire BT object naming)."""
+    """AA:BB:CC:DD:EE:FF -> AA_BB_CC_DD_EE_FF  (PipeWire BT object naming)."""
     return mac.upper().replace(":", "_")
 
 

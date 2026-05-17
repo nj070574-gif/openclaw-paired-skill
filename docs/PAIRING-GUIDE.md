@@ -27,7 +27,7 @@ On the host:
 This scans for 10 seconds and prints anything visible. Look for your phone's name. Output looks like:
 
 ```
-[scan]  C0:10:61:16:75:50  My Phone           RSSI=-56  ←─── pick this MAC
+[scan]  AA:BB:CC:DD:EE:FF  My Phone           RSSI=-56  ←─── pick this MAC
 [scan]  6C:5A:F1:23:AA:BB  some-bt-speaker    RSSI=-72
 [scan]  AC:7A:4D:00:FF:11  ble-keyboard       RSSI=-89
 ```
@@ -41,7 +41,7 @@ If you don't see your phone after 10 seconds:
 ### Step 2 — Pair
 
 ```bash
-~/bin/bt-pair C0:10:61:16:75:50 --connect
+~/bin/bt-pair AA:BB:CC:DD:EE:FF --connect
 ```
 
 The `--connect` flag means "pair, trust, and connect in one step" — what you usually want.
@@ -58,9 +58,9 @@ What happens:
 If everything works, you'll see:
 
 ```
-✅ paired      C0:10:61:16:75:50
-✅ trusted     C0:10:61:16:75:50
-✅ connected   C0:10:61:16:75:50
+✅ paired      AA:BB:CC:DD:EE:FF
+✅ trusted     AA:BB:CC:DD:EE:FF
+✅ connected   AA:BB:CC:DD:EE:FF
 ```
 
 ### Step 3 — Verify
@@ -72,7 +72,7 @@ If everything works, you'll see:
 Should show your phone with `CONN=yes  PAIR=yes  TRUST=yes`.
 
 ```bash
-~/bin/bt-info C0:10:61:16:75:50
+~/bin/bt-info AA:BB:CC:DD:EE:FF
 ```
 
 Shows full device detail — supported UUIDs, RSSI, profile list. The UUIDs you want to see at minimum:
@@ -120,7 +120,7 @@ Anything ✅ is good. Anything ⚠ is fixable — usually with a single command.
 Edit `~/.config/paired/paired.conf`:
 
 ```
-phone_bt_mac = C0:10:61:16:75:50    # the MAC from Step 1
+phone_bt_mac = AA:BB:CC:DD:EE:FF    # the MAC from Step 1
 phone_label  = My Phone
 adapter      = hci0
 ```

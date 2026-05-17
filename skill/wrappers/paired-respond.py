@@ -6,7 +6,7 @@ prefix 'Hi Agent,' AND the sender is on the whitelist.
 
 v2 changes:
 - Detect weather questions, fetch real data from Open-Meteo, enrich Gemini prompt
-- City extraction: regex looks for "in <City>", defaults to Colchester (per memory)
+- City extraction: regex looks for "in <City>", defaults to a configurable city (PAIRED_DEFAULT_CITY env var, fallback London)
 - WMO weather code mapping for human-readable conditions
 
 Workflow:
@@ -101,10 +101,10 @@ HISTORY_MAX_TURNS = 5  # keep last N Q+A pairs per sender
 HISTORY_TTL_SECONDS = 24 * 3600  # forget turns older than this
 TRIGGER_RE = re.compile(r'^\s*hi\s+paired\b\s*[,:!.]?\s*', re.IGNORECASE)
 
-# Default location when none specified - per memory, family is in Colchester
-DEFAULT_CITY = "Colchester"
-DEFAULT_LAT = 51.89
-DEFAULT_LON = 0.90
+# Default location when none specified - override via PAIRED_DEFAULT_CITY env var
+DEFAULT_CITY = os.environ.get("PAIRED_DEFAULT_CITY", "London")
+DEFAULT_LAT = float(os.environ.get("PAIRED_DEFAULT_LAT", "51.5074"))   # London by default
+DEFAULT_LON = float(os.environ.get("PAIRED_DEFAULT_LON", "-0.1278"))  # London by default
 
 # Weather-question detection - any of these keywords triggers enrichment
 WEATHER_KEYWORDS_RE = re.compile(
