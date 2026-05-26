@@ -2,6 +2,22 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] — 2026-05-26 — Security: historical git scrub + documentation note
+
+### Changed
+
+- **Git history rewrite (no functional code changes)** — All commits on `main` and the v2.0.0 tag have new SHAs. The HEAD tree content is byte-identical to the pre-rewrite v2.0.0. Anyone with a local clone should re-clone or run `git fetch --prune --force && git reset --hard origin/main` to sync.
+
+### Removed
+
+- **Pre-1.0 development tags v1.0.1 through v1.0.11 deleted from GitHub.** These older releases contained illustrative-but-real artefacts that have since been replaced with RFC-compliant placeholders (MAC addresses now use `AA:BB:CC:DD:EE:FF` per IEEE 802 standards-reserved range; default location example replaced with London). `git filter-repo` was used to scrub the same artefacts from every blob across the entire object database, eliminating them from any reachable commit, tag, or branch.
+
+### Notes for installers
+
+- `clawhub install paired` (no version flag) resolves to `latest` which is v2.0.0 — unaffected.
+- Installs that explicitly pin to v1.0.1 through v1.0.11 via `clawhub install paired --version v1.0.X` will still succeed because ClawHub's per-version archives are immutable by design (auditability/reproducibility guarantee). Those archives are functionally equivalent to v2.0.0 minus this CHANGELOG note. There is no security or operational reason to remain pinned to v1.0.x; all known v1.0.x users should migrate to v2.0.0 at next convenient opportunity.
+- No CVE assigned — the historical artefacts were illustrative documentation strings (a sample BT MAC scan output, a default-city fallback) rather than credentials, tokens, or PII of operational concern.
+
 ## [1.0.11] — 2026-05-15 — Add: audio settings preset for call-and-speak
 
 ### Added
