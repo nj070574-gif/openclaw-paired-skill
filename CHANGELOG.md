@@ -2,6 +2,31 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] — 2026-10-02 — Security hardening (audit remediation) + packaging fix
+
+### Fixed
+
+- **First-run setup was broken: the `paired.conf.example` and `trusted-numbers.conf.example` templates are now shipped inside the package.** They previously lived only at the repo root, outside the `skill/` tree that `clawhub publish` packages, so a fresh `clawhub install paired` was missing the two templates the SKILL.md setup steps tell you to copy (steps 2 and 3 failed with "no such file"). Both now sit in `skill/config-templates/` alongside `voice.conf.example`.
+
+### Added
+
+- **`messages_pkg` and `send_button_id` config keys** in `paired.conf` — override the Messages app package and Send-button resource-id for non-Samsung firmware (e.g. Google Messages). Defaults are unchanged (Samsung Messages). See `paired.conf.example`. Note: the compose-detection resource-ids remain Samsung-tuned, so non-Samsung support may need further adjustment.
+
+### Changed
+
+- **Voice config guidance:** `voice.conf.example` now notes that XTTS v2 is the more reliable day-to-day engine and that running only XTTS is fine — `paired-voice-synth` health-checks each service and falls through the ladder automatically.
+
+### Security
+
+Remediation of a security audit (six findings). No change to default behaviour except where noted.
+
+- **Voice service no longer binds `0.0.0.0` by default (`engines/voxcpm-server.py`).** The VoxCPM2 HTTP server previously listened on all interfaces with no authentication. It now binds `127.0.0.1` by default, overridable via the `VOXCPM_BIND` env var. An optional shared-secret gate was added: when `VOXCPM_TOKEN` is set, `/synth` requires a matching `X-Paired-Token` header (401 otherwise); `/health` stays open. When `VOXCPM_TOKEN` is unset, behaviour is open on the (now localhost-only) bind. No XTTS Python server ships in `engines/` (only `xtts.Dockerfile`), so no equivalent change was needed there.
+- **Over-broad sudoers recommendation tightened (`bin/bt-recover.py`).** The recommended passwordless-sudo rule in the header docstring granted `/usr/bin/sh` (an effective passwordless root shell). It now pins to the exact commands the tool runs (`rfkill block/unblock bluetooth`, `systemctl restart bluetooth`, `hciconfig hci[0-9] up/down/reset`, and `tee` to the USB `authorized` sysfs path). The USB de/re-authorise step was changed from `sudo sh -c 'echo … > …/authorized'` to a shell-free `sudo tee` helper so the code matches the narrowed rule.
+- **Private message logs now created mode 0600 (`wrappers/paired-sms-watch.py`).** The SMS event log (`sms-events.jsonl`, holds full message bodies) and the dedup DB (`sms-seen.db`, holds sender/subject fragments) are now opened with `os.open(..., 0o600)` and `os.chmod`-enforced, instead of inheriting the umask.
+- **`respond_local_only` config guard added (`wrappers/paired-respond.py`).** The opt-in LLM-reply feature can now be restricted to on-host processing: when `respond_local_only = true` in `~/.config/paired/paired.conf`, the responder refuses to send any message content to the external Gemini provider and skips the LLM call. Default (unset/false) behaviour is unchanged. An explicit log line now records every time content is about to be sent to an external provider (sender + provider name).
+- **Input bounds validation (`setup/paired-voice-setup.py`).** The "which take is cleanest?" prompt parsed `int(input(...))` with no validation and used it to index a list / build an ffmpeg command. It now re-prompts on non-integer or out-of-range input and aborts cleanly on EOF.
+- **Silent SMS send gated behind explicit opt-in (`bin/bt_adb.py`).** `sms_send_silent()` (sends SMS via `service call isms` with no UI/consent) now refuses unless `PAIRED_ALLOW_SILENT_SMS=1`, raising `AdbError` otherwise, with a prominent docstring warning. The function is retained so callers are not broken; its only caller, `bin/bt-adb-sms.py --silent`, already surfaces the error cleanly.
+
 ## [2.0.1] — 2026-05-26 — Security: historical git scrub + documentation note
 
 ### Changed

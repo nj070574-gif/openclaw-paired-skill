@@ -188,6 +188,42 @@ def load_telegram_env() -> tuple[str | None, str | None]:
     return token, chat
 
 
+def load_paired_conf() -> dict:
+    """Read key=value pairs from ~/.config/paired/paired.conf.
+
+    Mirrors the parsing used for telegram.env (strip comments, split on '=',
+    trim surrounding quotes/whitespace). Returns {} if the file is absent.
+    """
+    conf: dict = {}
+    cfg = Path.home() / ".config" / "paired" / "paired.conf"
+    if not cfg.exists():
+        return conf
+    try:
+        for line in cfg.read_text().splitlines():
+            line = line.split("#", 1)[0].strip()
+            if not line or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            conf[k.strip()] = v.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return conf
+
+
+def _conf_bool(val, default: bool = False) -> bool:
+    if val is None:
+        return default
+    return val.strip().lower() in ("1", "true", "yes", "on")
+
+
+# respond_local_only: when true, message content must NEVER be sent to an
+# external (cloud) LLM provider — only a local endpoint may be used. No local
+# endpoint is wired up in this build, so when enabled the responder skips the
+# LLM call entirely rather than sending content off-host. Default: false
+# (unchanged behaviour — external Gemini responder stays active).
+RESPOND_LOCAL_ONLY = _conf_bool(load_paired_conf().get("respond_local_only"), False)
+
+
 def load_gemini_keys() -> list[str]:
     """Read Gemini API keys from a user-supplied config file.
 
@@ -662,10 +698,22 @@ def main() -> int:
     # 4. Load conversation history + call Gemini
     history = load_history(normalized)
     log.info(f"History: {len(history)} turn(s) loaded for {normalized}")
-    api_keys = load_gemini_keys()
-    log.info(f"Loaded {len(api_keys)} Gemini key(s)")
-    answer, info = call_gemini(question, api_keys, extra_context=extra_context, history=history)
-    log.info(f"Gemini: ok={answer is not None} info={info} answer={answer[:80] if answer else '(none)'!r}")
+    if RESPOND_LOCAL_ONLY:
+        # respond_local_only guard: never send message content to a cloud
+        # provider. No local LLM endpoint is configured in this build, so we
+        # skip the LLM call and fall through to a manual-draft Telegram alert.
+        log.warning(
+            f"respond_local_only=true: refusing to send content from {sender_addr} "
+            f"to EXTERNAL provider Gemini; no local LLM endpoint configured — skipping LLM"
+        )
+        answer, info = None, "respond_local_only: external provider skipped"
+    else:
+        api_keys = load_gemini_keys()
+        log.info(f"Loaded {len(api_keys)} Gemini key(s)")
+        # EXTERNAL PROVIDER DISCLOSURE: SMS content is about to leave this host.
+        log.info(f"Sending SMS content from {sender_addr} to EXTERNAL provider: Gemini")
+        answer, info = call_gemini(question, api_keys, extra_context=extra_context, history=history)
+        log.info(f"Gemini: ok={answer is not None} info={info} answer={answer[:80] if answer else '(none)'!r}")
     if answer:
         save_turn(normalized, question, answer)
 

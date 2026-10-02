@@ -133,18 +133,30 @@ def load_seen_ids() -> set:
 
 
 def append_seen_id(msg_id: str):
+    # Holds sender/subject fragments of private messages -> enforce mode 0600.
     try:
         SEEN_DB.parent.mkdir(parents=True, exist_ok=True)
-        with SEEN_DB.open("a") as f:
+        fd = os.open(str(SEEN_DB), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        try:
+            os.chmod(str(SEEN_DB), 0o600)
+        except OSError:
+            pass
+        with os.fdopen(fd, "a") as f:
             f.write(f"{msg_id}\n")
     except OSError as e:
         log.warning(f"seen-db write failed: {e}")
 
 
 def append_event_log(event: dict):
+    # Holds full SMS/MMS message bodies -> enforce mode 0600.
     try:
         EVENT_LOG.parent.mkdir(parents=True, exist_ok=True)
-        with EVENT_LOG.open("a") as f:
+        fd = os.open(str(EVENT_LOG), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        try:
+            os.chmod(str(EVENT_LOG), 0o600)
+        except OSError:
+            pass
+        with os.fdopen(fd, "a") as f:
             f.write(json.dumps(event) + "\n")
     except OSError as e:
         log.warning(f"event log write failed: {e}")
