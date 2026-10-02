@@ -2,6 +2,12 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] — 2026-10-02 — Ship config templates + engine Dockerfiles (ClawHub packaging-filter fix)
+
+### Fixed
+
+- ClawHub's publish file-extension allowlist silently dropped `*.conf.example` and `*.Dockerfile` from the package, so the config templates (and voice-engine Dockerfiles) never reached installers — defeating the v2.1.0 packaging fix. Renamed them with a `.txt` suffix (same convention already used for `*.service.txt`): `paired.conf.example.txt`, `trusted-numbers.conf.example.txt`, `voice.conf.example.txt`, `voxcpm.Dockerfile.txt`, `xtts.Dockerfile.txt`. Setup docs updated to copy-then-strip `.txt`.
+
 ## [2.1.0] — 2026-10-02 — Security hardening (audit remediation) + packaging fix
 
 ### Fixed

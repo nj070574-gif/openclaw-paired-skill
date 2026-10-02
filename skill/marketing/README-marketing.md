@@ -145,7 +145,7 @@ clawhub install paired
 
 # 2. Bring up the voice-cloning service
 cd skills/paired/skill/engines
-docker build -t paired-voxcpm:latest -f voxcpm.Dockerfile .
+docker build -t paired-voxcpm:latest -f voxcpm.Dockerfile.txt .   # .txt is a ClawHub packaging suffix; -f takes any filename
 docker run -d --name paired-voxcpm --gpus all --restart unless-stopped \
   -p 8056:8056 \
   -v ~/.config/paired/voice:/refs \

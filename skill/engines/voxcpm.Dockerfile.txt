@@ -1,5 +1,5 @@
 # VoxCPM2 voice-cloning service for paired
-# Build:  docker build -t paired-voxcpm:latest -f voxcpm.Dockerfile .
+# Build:  docker build -t paired-voxcpm:latest -f voxcpm.Dockerfile.txt .   # .txt is a ClawHub packaging suffix; -f takes any filename
 # Run:    docker run -d --name paired-voxcpm --gpus all --restart unless-stopped \
 #           -p 8056:8056 \
 #           -v /path/to/your/refs:/refs \

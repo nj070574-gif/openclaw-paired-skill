@@ -106,13 +106,13 @@ paired-inbox-hook --keygen
 systemctl --user enable --now paired-inbox-hook.service
 ```
 
-The `.py`, `.sh`, and `.service.txt` extensions exist to satisfy the ClawHub packaging text-file allowlist; on disk in your `~/bin/` and `~/.config/systemd/user/` they should be the unsuffixed names referenced throughout this document.
+The `.py`, `.sh`, and `.service.txt` extensions exist to satisfy the ClawHub packaging text-file allowlist; on disk in your `~/bin/` and `~/.config/systemd/user/` they should be the unsuffixed names referenced throughout this document. The same `.txt` suffix on `config-templates/*.conf.example.txt` and `engines/*.Dockerfile.txt` is there for the same reason — drop the trailing `.txt` when you copy a template, or pass the suffixed name to `docker build -f` directly.
 
 When reasoning about a phone task, prefer the high-level `paired-*` wrappers — they handle trust checks, error formatting, and JSON output. Drop to `bt-*` only for diagnostic or low-level work. **The low-level `bt-call` and `bt-sms` primitives now also enforce the trusted-numbers allowlist** (since v1.0.4) and refuse to dial/SMS unlisted numbers unless `--confirm` is passed.
 
 **Acting on the world vs. answering questions:** for status queries ("is my phone connected?", "any new SMS?"), running the tool and reporting the result is the right call. For high-impact actions (sending SMS, dialling calls, pairing new devices, unlocking the phone), confirm with the user first unless the request is unambiguous and the destination is on the trusted-numbers allowlist.
 
-**Phone identity comes from `~/.config/paired/paired.conf`**, key `phone_bt_mac`. If a command needs the phone's MAC, read it from the config rather than asking the user. If the config is missing, tell the user to copy `paired.conf.example` and fill in the MAC.
+**Phone identity comes from `~/.config/paired/paired.conf`**, key `phone_bt_mac`. If a command needs the phone's MAC, read it from the config rather than asking the user. If the config is missing, tell the user to copy `paired.conf.example.txt` and fill in the MAC.
 
 ## Most-used commands
 
@@ -306,7 +306,7 @@ These are **phone-firmware constraints, not skill bugs**. The tools return clean
 ### General
 
 - The "Hi Agent," LLM trigger is **opt-in** via `paired.conf` and bound to a **whitelist**. Default config has the whitelist empty, which keeps the feature off until the user explicitly trusts a number.
-- Auto-unlock is **opt-in only**. Storing a phone PIN on the host is a security trade — see `paired.conf.example` for the warning.
+- Auto-unlock is **opt-in only**. Storing a phone PIN on the host is a security trade — see `paired.conf.example.txt` for the warning.
 
 ## Architecture notes
 
@@ -337,13 +337,13 @@ See `docs/HARDWARE-COMPATIBILITY.md` for the full matrix. Tested combinations:
 
 2. **Write your config:**
    ```bash
-   cp config-templates/paired.conf.example ~/.config/paired/paired.conf
+   cp config-templates/paired.conf.example.txt ~/.config/paired/paired.conf   # drop the trailing .txt on copy — it's a ClawHub packaging suffix
    $EDITOR ~/.config/paired/paired.conf   # set phone_bt_mac, adapter, etc.
    ```
 
 3. **Set up the trusted-numbers list (optional, recommended):**
    ```bash
-   cp config-templates/trusted-numbers.conf.example ~/.config/paired/trusted-numbers.conf
+   cp config-templates/trusted-numbers.conf.example.txt ~/.config/paired/trusted-numbers.conf
    ~/bin/paired-trusted add 07911123456 "main mobile"
    ~/bin/paired-trusted list
    ```

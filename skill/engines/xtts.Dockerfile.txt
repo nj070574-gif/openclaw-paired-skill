@@ -1,5 +1,5 @@
 # XTTS v2 voice-cloning service for paired (fallback)
-# Build:  docker build -t paired-xtts:latest -f xtts.Dockerfile .
+# Build:  docker build -t paired-xtts:latest -f xtts.Dockerfile.txt .   # .txt is a ClawHub packaging suffix; -f takes any filename
 
 FROM pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime
 
