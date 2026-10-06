@@ -1,6 +1,6 @@
 ---
 name: paired
-version: "2.2.0"
+version: "2.3.0"
 description: Paired: Phone Agent. Bridges an OpenClaw agent to the user's own phone via Bluetooth and ADB. Provides SMS receive (MAP/MNS), SMS send (ADB), outgoing/incoming calls (HFP), contacts (PBAP), media control (AVRCP), file transfer (OBEX), PAN tethering, and v2.0.0+ voice cloning so the agent speaks in the user's own voice with word-level audio splicing and 30-language multilingual synthesis. Zero recurring cost, no Twilio, Telnyx, Vapi, ElevenLabs, or rented numbers. Voice cloning runs locally via VoxCPM2 (primary, 48kHz studio) with XTTS v2 fallback (24kHz), piper fallback (generic), and espeak-ng last resort. Triggers on phrases like "send SMS", "text someone", "call my phone", "make a call", "what's on my phone", "my contacts", "phone contacts", "control my phone's media", "send a file to my phone", "is my phone connected", "say it in my voice", "voice note in my voice", "clone my voice", "/sms", "/phone", "/voice", "/say". Act only on explicit phone/Bluetooth requests like these, never on incidental mentions of words such as "pause", "Bluetooth", or "MAP" in ordinary conversation. Configuration lives in ~/.config/paired/paired.conf (phone MAC, adapter, trusted numbers list) and ~/.config/paired/voice.conf (voice cloning config, only if voice features are enabled). Always read the config before acting; never hardcode phone identifiers.
 capabilities:
   - sends-sms
@@ -65,6 +65,8 @@ safety:
     - all outbound calls require trusted-numbers allowlist OR explicit --confirm
     - phone unlock requires --auto-unlock flag explicitly per invocation
     - pairing-agent default mode is interactive (auto mode requires explicit --mode auto)
+    - LLM SMS auto-reply is OFF by default (draft-only); set llm_auto_reply=true to enable automatic sending
+    - trusted-caller handling defaults to notify-only; set incoming_trusted_action=hangup or hangup_and_sms to auto-handle
   notes: |
     This skill controls the user's real phone. It is intended for use on a Linux
     host that the user owns, paired to a phone the user owns, with Telegram bot
@@ -210,6 +212,14 @@ Telegram command shortcut: when the user types `/sms NUMBER text` in Telegram, r
 
 Real-time incoming-call alerts run as a systemd user service (`paired-call-watch.service`) — caught calls go to the user's Telegram via `paired-call-watch-tg-hook` with sender + trust-status info.
 
+**Trusted-caller handling is configurable and defaults to notify-only.** For a caller on the trusted-numbers list, `paired-call-handler` reads `incoming_trusted_action` from `paired.conf`:
+
+- `notify` **(default / fail-closed)** — do not touch the call; just send the Telegram alert and let it ring. No hangup, no SMS.
+- `hangup` — hang up the call, no SMS.
+- `hangup_and_sms` — hang up and send the "Agent is unavailable…" auto-reply SMS (the previous always-on behaviour; now explicit opt-in).
+
+Any unknown or missing value fails closed to `notify`, so no mistyped or injected value can trigger an automatic hangup or outbound SMS.
+
 ### Phone — Telegram command vocabulary (deterministic, bypasses LLM)
 
 `paired-sms-command-hook.service` reads commands from a dedicated, append-only inbox at `~/.openclaw/paired/inbox/` (NOT from raw agent session logs — see Security model below) and dispatches recognised commands without invoking the LLM:
@@ -303,7 +313,7 @@ When an SMS arrives whose body starts with the phrase set in `paired.conf[llm_tr
 2. Call the configured LLM (Gemini / OpenAI / local) with a tight system prompt
 3. Post a richer Telegram alert containing sender, original question, drafted reply, and a tap-to-copy `/sms` command
 
-The user decides whether to send the draft by tapping the `/sms` line. **No automatic SMS reply.** Empty whitelist disables the feature. Logs at `~/.paired/sms-respond.log`.
+The owner decides whether to send the draft by tapping the `/sms` line. **Draft-only is the default — no SMS is sent to the contact automatically.** To opt into automatic sending, set `llm_auto_reply=true` in `paired.conf`; a whitelisted "Hi paired," message is then answered and the reply texted back automatically (still gated by the whitelist + per-sender cooldown). An empty whitelist disables the feature entirely. Logs at `~/.paired/sms-respond.log`.
 
 ## Common phrasings → tool mapping
 

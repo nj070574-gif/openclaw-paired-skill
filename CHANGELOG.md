@@ -2,6 +2,25 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] — 2026-10-06 — ClawHub audit Phase 2: safe-by-default auto-actions
+
+Phase 2 of the v2.1.1 ClawHub security-audit remediation. This changes two
+runtime defaults so the skill no longer acts on the user's behalf without
+either an opt-in or confirmation. Previous behaviour is restorable with one
+config line each.
+
+### Changed (behavioural — safe defaults, opt-in to restore)
+- **LLM SMS auto-reply is now draft-only by default** (`wrappers/paired-respond.py`). Previously a Gemini-drafted answer to a whitelisted "Hi paired," SMS was **texted back to the sender automatically**, contradicting the SKILL.md claim of "no automatic SMS reply". Now the draft is posted to Telegram with a tap-to-copy `/sms` command and the owner sends it. Set `llm_auto_reply=true` in `paired.conf` to restore automatic sending (still whitelist- + cooldown-gated). Addresses T09 Finding 1.
+- **Trusted incoming calls now honour `incoming_trusted_action`, default `notify`** (`wrappers/paired-call-handler.py`). Previously any trusted caller was **automatically hung up and sent an SMS**, ignoring the `incoming_trusted_action` setting the config template already documented. The handler now reads that key: `notify` (default — alert only, let it ring), `hangup` (hang up only), or `hangup_and_sms` (the previous behaviour). Unknown/missing values fail closed to `notify`. Addresses T09 Finding 2.
+
+### Docs
+- SKILL.md: corrected the LLM-reply section (draft-only default + `llm_auto_reply`), documented `incoming_trusted_action` under the calls section, and added both defaults to the `high_impact_actions` frontmatter.
+- `config-templates/paired.conf.example.txt`: added `llm_auto_reply` (default false) and aligned `incoming_trusted_action` values to those the code now honours (notify/hangup/hangup_and_sms).
+- Version 2.3.0.
+
+### Notes
+- No change to the trusted-numbers allowlist gating, the HMAC inbox dispatcher, or any other flow. Owners who want the old behaviour set `llm_auto_reply=true` and `incoming_trusted_action=hangup_and_sms`.
+
 ## [2.2.0] — 2026-10-06 — ClawHub audit: structural hardening + credential/env fixes (Phase 1)
 
 Phase 1 of the v2.1.1 ClawHub security-audit remediation. **Phase 1 is non-behavioural** — no change to runtime defaults (LLM auto-reply, `incoming_trusted_action`, etc.); those are a deliberate Phase 2 follow-up.
