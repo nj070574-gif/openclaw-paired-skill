@@ -2,6 +2,18 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] — 2026-10-06 — Docs: frame capabilities as features, not risks
+
+Documentation-only. No code or behaviour change. Makes it unmistakable, in the
+online docs ClawHub renders, that Paired's powerful behaviours are **intentional,
+disclosed features** — so the "Needs review" badge is read as *capability*, not a
+defect or malware.
+
+### Docs
+- **SKILL.md:** new top section **"These are features, by design — not vulnerabilities"** with a capability → what-it's-for → control table (send SMS/calls, silent SMS, auto-unlock, ADB control, persistent listeners, Telegram relay, voice cloning, Bluetooth auto-pair), and a plain statement that the badge means "capable — install only on a host and phone you control," not "insecure."
+- **README.md:** the "About the security scanner rating" section reframed to lead with *features, not vulnerabilities* and carry the same capability/control table; each scanner finding is mapped to the deliberate feature it comes from.
+- Version 2.4.1 (SKILL.md frontmatter, CHANGELOG).
+
 ## [2.4.0] — 2026-10-06 — ClawHub audit Phase 3: code-injection & broken-gate fixes
 
 Phase 3 of the ClawHub security-audit remediation. Fixes three concrete code
