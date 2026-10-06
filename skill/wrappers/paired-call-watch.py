@@ -39,6 +39,7 @@ import time
 import signal
 import argparse
 import logging
+import shlex
 import subprocess
 import threading
 from pathlib import Path
@@ -227,8 +228,13 @@ class CallWatcher:
                 "BTCALL_TIMESTAMP": datetime.now().strftime("%Y%m%dT%H%M%S"),
             })
             try:
+                # hook_cmd is the operator-supplied --hook command, fixed at
+                # service start; call data is passed via env vars, never
+                # interpolated into the command. Split to argv and run without a
+                # shell so there is no shell-injection surface. A hook that needs
+                # shell features should be a script file (as the shipped hook is).
                 p = subprocess.run(
-                    self.hook_cmd, shell=True, env=env, timeout=10,
+                    shlex.split(self.hook_cmd), shell=False, env=env, timeout=10,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 rc = p.returncode
                 log.info(f"Hook exit {rc} (0=answer, 1=ignore, 2=hangup)")

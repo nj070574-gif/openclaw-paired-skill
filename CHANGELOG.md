@@ -2,6 +2,23 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] — 2026-10-06 — ClawHub audit Phase 3: code-injection & broken-gate fixes
+
+Phase 3 of the ClawHub security-audit remediation. Fixes three concrete code
+defects the scanner flagged at high confidence. No feature removed; no change
+to the trusted-numbers allowlist, the HMAC inbox dispatcher, voice cloning, or
+the phone-control flows. (The skill remains a disclosed, high-capability
+phone agent and keeps its "needs review" advisory — these are genuine bug
+fixes, not an attempt to hide capability.)
+
+### Security
+- **Removed `shell=True` from the hook dispatchers** (`wrappers/paired-call-watch.py`, `wrappers/paired-sms-watch.py`). The operator-supplied `--hook` command is now split with `shlex.split()` and run with `shell=False`. Call/SMS data was already passed via environment variables (never interpolated into the command), so this removes the shell-injection surface the scanner flagged (Tool Parameter Abuse, 97–98%) with no loss of function — a hook that needs shell features should be a script file, as the shipped tg-hook already is.
+- **Fixed the broken owner-only gate** in the legacy `wrappers/paired-sms-command-hook.py`. `ALLOWED_SENDER_ID` was the literal placeholder string `"${TELEGRAM_OWNER_CHAT_ID}"`, which was never substituted — so the documented "owner-only" control did not match a real sender id (Intent-Code Divergence, 99%). It is now resolved from real configuration (`PAIRED_OWNER_CHAT_ID` env var, else `TG_CHAT_ID` from the mode-0600 `telegram.env`), and both the `/sms` and `/phone` gates fail **closed** when no owner is configured. (This hook is still deprecated and refuses to run without the explicit legacy flags.)
+- **Made the voice-synth output path validation explicit at the ffmpeg call** (`voice/paired-voice-synth.py`). The caller-chosen output is validated once (must be `.wav`, no NUL, not a symlink or non-regular file) and the validated path is then carried through a single `safe_output` variable used by both the single-TTS and the concat ffmpeg (`-y`) calls (Unvalidated Output Injection, 95%).
+
+### Notes
+- Version 2.4.0 (SKILL.md frontmatter, CHANGELOG). All four touched Python files pass `py_compile`.
+
 ## [2.3.0] — 2026-10-06 — ClawHub audit Phase 2: safe-by-default auto-actions
 
 Phase 2 of the v2.1.1 ClawHub security-audit remediation. This changes two

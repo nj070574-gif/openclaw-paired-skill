@@ -52,6 +52,7 @@ import time
 import signal
 import argparse
 import logging
+import shlex
 import subprocess
 import threading
 import tempfile
@@ -479,8 +480,13 @@ class MapWatcher:
             "BTSMS_PHONE": self.phone,
         })
         try:
+            # hook_cmd is the operator-supplied --hook command, fixed at service
+            # start; message data is passed via env vars, never interpolated into
+            # the command. Split to argv and run without a shell so there is no
+            # shell-injection surface. A hook that needs shell features should be
+            # a script file (as the shipped hook is).
             subprocess.Popen(
-                self.hook_cmd, shell=True, env=env,
+                shlex.split(self.hook_cmd), shell=False, env=env,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
             log.info(f"Hook dispatched: {self.hook_cmd[:80]}")
