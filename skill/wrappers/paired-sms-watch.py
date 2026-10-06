@@ -459,7 +459,14 @@ class MapWatcher:
         if self.print_only or not self.hook_cmd:
             return
 
-        env = os.environ.copy()
+        # Pass a minimal, curated environment to the hook rather than the full
+        # parent environ: the parent may hold unrelated secrets (Gemini keys,
+        # Telegram tokens, etc.) a notify hook has no need to see. The shipped
+        # tg-hook reads its own credentials from a mode-0600 config file.
+        _PASS = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL",
+                 "LC_CTYPE", "TERM", "TZ", "XDG_RUNTIME_DIR",
+                 "DBUS_SESSION_BUS_ADDRESS", "PAIRED_DATA_DIR")
+        env = {k: os.environ[k] for k in _PASS if k in os.environ}
         env.update({
             "BTSMS_SENDER": fields['sender'],
             "BTSMS_SENDER_ADDR": fields['sender_address'],

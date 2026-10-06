@@ -2,6 +2,26 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] — 2026-10-06 — ClawHub audit: structural hardening + credential/env fixes (Phase 1)
+
+Phase 1 of the v2.1.1 ClawHub security-audit remediation. **Phase 1 is non-behavioural** — no change to runtime defaults (LLM auto-reply, `incoming_trusted_action`, etc.); those are a deliberate Phase 2 follow-up.
+
+### Security
+- **Hooks now receive a minimal, curated environment, not the full parent environ** (`wrappers/paired-call-watch.py`, `wrappers/paired-sms-watch.py`). Previously `os.environ.copy()` handed every parent variable — including unrelated secrets such as Gemini keys or Telegram tokens — to each hook subprocess. Now only an explicit allowlist (PATH/HOME/locale/XDG/DBUS + the `BTCALL_*`/`BTSMS_*` event vars) is passed. The shipped tg-hooks read their own credentials from a mode-0600 file, so they are unaffected. Addresses the "Env Variable Harvesting" findings.
+- **Voice synth validates its output path** (`voice/paired-voice-synth.py`). Since ffmpeg runs with `-y` (overwrite), the output is now required to be a plain `.wav` and is refused if it is a symlink or non-regular file — preventing an unexpected path from being clobbered. Addresses "Unvalidated Output Injection".
+
+### Added
+- **Declarative security frontmatter in SKILL.md:** a `binaries:` allow-list under `requires:` (addresses "Undeclared Tool Scope"), `risk_level`/`risk_acknowledged`, and a `prompt_injection_mitigation:` block documenting that incoming SMS/call/notification content is data (never commands), that dispatch is HMAC-inbox-only, and that high-impact actions are allowlist/`--confirm` gated.
+- **"Consent, privacy & legal" sections** in SKILL.md and README — own-device-only, other-party consent (recording/SMS/contacts, two-party-consent/GDPR), cloned-voice disclosure (own voice only; tell recipients it is AI-generated; not an impersonation tool), and device/mic access. Addresses "Missing User Warnings".
+
+### Changed
+- **Triggers scoped** in the SKILL.md description: dropped bare/ambiguous words ("pause", "next track", "Bluetooth", "BT", "ofono", "AVRCP", "MAP") that collide with ordinary conversation; kept explicit phone/Bluetooth phrasings and slash-commands, with a note to act only on explicit requests. Addresses "Vague Triggers".
+- **Marketing copy reframed** (`skill/marketing/README-marketing.md`): replaced undisclosed-impersonation framing ("Nobody asks questions"; "hears you… not a robot") with own-voice-with-disclosure language. Addresses "Natural-Language Policy Violations".
+
+### Notes
+- Scanner false positives confirmed and left as-is: the tg-hook `curl` calls (flagged "External Script Fetching / supply chain") only POST notifications to the user's own Telegram bot API — they download nothing; `bin/bt-adb-setup.py` (~line 79) is a hardcoded probe-file `rm`, not injectable.
+- **Deferred to Phase 2 (behavioural):** make LLM SMS auto-reply default-off, enforce `incoming_trusted_action` (notify/hangup/…) in the call hook + `paired-call-handler`, and the related `shell=True` hardening on the hook-dispatch path.
+
 ## [2.1.1] — 2026-10-02 — Ship config templates + engine Dockerfiles (ClawHub packaging-filter fix)
 
 ### Fixed

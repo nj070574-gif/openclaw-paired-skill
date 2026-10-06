@@ -208,8 +208,16 @@ class CallWatcher:
     def _decide(self, event: dict) -> str:
         """Returns 'answer', 'hangup', or 'ignore'."""
         if self.hook_cmd:
-            # Hook decides via exit code
-            env = os.environ.copy()
+            # Hook decides via exit code.
+            # Pass a minimal, curated environment rather than the full parent
+            # environ: the parent process may hold unrelated secrets (Gemini
+            # keys, Telegram tokens, etc.) that a routing hook has no need to
+            # see. The shipped tg-hook reads its own credentials from a
+            # mode-0600 config file, so a custom hook should too.
+            _PASS = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL",
+                     "LC_CTYPE", "TERM", "TZ", "XDG_RUNTIME_DIR",
+                     "DBUS_SESSION_BUS_ADDRESS", "PAIRED_DATA_DIR")
+            env = {k: os.environ[k] for k in _PASS if k in os.environ}
             env.update({
                 "BTCALL_NUMBER": event["line_id"],
                 "BTCALL_LINE_ID": event["line_id"],

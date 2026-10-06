@@ -284,6 +284,18 @@ def main():
     p.add_argument("output", help="Output WAV path")
     args = p.parse_args()
 
+    # Validate the output path before any engine writes to it. ffmpeg runs with
+    # -y (overwrite), so an unexpected path could clobber a file in an agent
+    # environment. Require a .wav target and refuse to overwrite anything that
+    # is not a plain regular file (symlink, device, fifo, directory).
+    out_path = Path(args.output)
+    if "\x00" in args.output or out_path.suffix.lower() != ".wav":
+        log("Refusing: output path must be a plain .wav file")
+        sys.exit(2)
+    if out_path.is_symlink() or (out_path.exists() and not out_path.is_file()):
+        log("Refusing: output path is a symlink or non-regular file")
+        sys.exit(2)
+
     config = load_config(args.config)
     if args.reference:
         config["VOICE_REFERENCE"] = args.reference

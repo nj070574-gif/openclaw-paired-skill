@@ -85,6 +85,17 @@ If any of the above feels too much for your threat model: don't install. The sca
 
 ---
 
+## Consent, privacy & legal
+
+This skill controls a real phone and can speak in a cloned voice. With that power come obligations that are **yours** as the operator:
+
+- **Own-device only.** Install only on a host and phone you own, with a Telegram bot you control. Never point it at anyone else's device, number, or accounts.
+- **Consent of the other party.** Reading, forwarding or acting on SMS, calls, and contacts — and any call recording — may require the other person's consent and is legally restricted in many places (two-party-consent jurisdictions, GDPR, etc.). Get consent and know your local law.
+- **Cloned voice: your own, and disclosed.** Clone only your own voice; never clone someone else's without explicit consent. When your agent sends a voice note or speaks in your cloned voice, tell the recipient it is AI-generated. Using a clone to make someone believe they are hearing the real person live is deceptive and may be unlawful. **Paired is not an impersonation tool.**
+- **Device & mic access.** ADB gives shell-level control of the phone; voice setup captures your microphone (`arecord`). Keep the host, the phone, and every secret file (`pin`, `inbox.key`, `gemini-keys.conf`, voice reference) private and mode 0600, off shared machines.
+
+---
+
 ## What is new in v2.0.0
 
 | Change | Path | Notes |
