@@ -2,6 +2,54 @@
 
 All notable changes to the Paired skill are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] — 2026-10-06 — Docs: frame capabilities as features, not risks
+
+Documentation-only. No code or behaviour change. Makes it unmistakable, in the
+online docs ClawHub renders, that Paired's powerful behaviours are **intentional,
+disclosed features** — so the "Needs review" badge is read as *capability*, not a
+defect or malware.
+
+### Docs
+- **SKILL.md:** new top section **"These are features, by design — not vulnerabilities"** with a capability → what-it's-for → control table (send SMS/calls, silent SMS, auto-unlock, ADB control, persistent listeners, Telegram relay, voice cloning, Bluetooth auto-pair), and a plain statement that the badge means "capable — install only on a host and phone you control," not "insecure."
+- **README.md:** the "About the security scanner rating" section reframed to lead with *features, not vulnerabilities* and carry the same capability/control table; each scanner finding is mapped to the deliberate feature it comes from.
+- Version 2.4.1 (SKILL.md frontmatter, CHANGELOG).
+
+## [2.4.0] — 2026-10-06 — ClawHub audit Phase 3: code-injection & broken-gate fixes
+
+Phase 3 of the ClawHub security-audit remediation. Fixes three concrete code
+defects the scanner flagged at high confidence. No feature removed; no change
+to the trusted-numbers allowlist, the HMAC inbox dispatcher, voice cloning, or
+the phone-control flows. (The skill remains a disclosed, high-capability
+phone agent and keeps its "needs review" advisory — these are genuine bug
+fixes, not an attempt to hide capability.)
+
+### Security
+- **Removed `shell=True` from the hook dispatchers** (`wrappers/paired-call-watch.py`, `wrappers/paired-sms-watch.py`). The operator-supplied `--hook` command is now split with `shlex.split()` and run with `shell=False`. Call/SMS data was already passed via environment variables (never interpolated into the command), so this removes the shell-injection surface the scanner flagged (Tool Parameter Abuse, 97–98%) with no loss of function — a hook that needs shell features should be a script file, as the shipped tg-hook already is.
+- **Fixed the broken owner-only gate** in the legacy `wrappers/paired-sms-command-hook.py`. `ALLOWED_SENDER_ID` was the literal placeholder string `"${TELEGRAM_OWNER_CHAT_ID}"`, which was never substituted — so the documented "owner-only" control did not match a real sender id (Intent-Code Divergence, 99%). It is now resolved from real configuration (`PAIRED_OWNER_CHAT_ID` env var, else `TG_CHAT_ID` from the mode-0600 `telegram.env`), and both the `/sms` and `/phone` gates fail **closed** when no owner is configured. (This hook is still deprecated and refuses to run without the explicit legacy flags.)
+- **Made the voice-synth output path validation explicit at the ffmpeg call** (`voice/paired-voice-synth.py`). The caller-chosen output is validated once (must be `.wav`, no NUL, not a symlink or non-regular file) and the validated path is then carried through a single `safe_output` variable used by both the single-TTS and the concat ffmpeg (`-y`) calls (Unvalidated Output Injection, 95%).
+
+### Notes
+- Version 2.4.0 (SKILL.md frontmatter, CHANGELOG). All four touched Python files pass `py_compile`.
+
+## [2.3.0] — 2026-10-06 — ClawHub audit Phase 2: safe-by-default auto-actions
+
+Phase 2 of the v2.1.1 ClawHub security-audit remediation. This changes two
+runtime defaults so the skill no longer acts on the user's behalf without
+either an opt-in or confirmation. Previous behaviour is restorable with one
+config line each.
+
+### Changed (behavioural — safe defaults, opt-in to restore)
+- **LLM SMS auto-reply is now draft-only by default** (`wrappers/paired-respond.py`). Previously a Gemini-drafted answer to a whitelisted "Hi paired," SMS was **texted back to the sender automatically**, contradicting the SKILL.md claim of "no automatic SMS reply". Now the draft is posted to Telegram with a tap-to-copy `/sms` command and the owner sends it. Set `llm_auto_reply=true` in `paired.conf` to restore automatic sending (still whitelist- + cooldown-gated). Addresses T09 Finding 1.
+- **Trusted incoming calls now honour `incoming_trusted_action`, default `notify`** (`wrappers/paired-call-handler.py`). Previously any trusted caller was **automatically hung up and sent an SMS**, ignoring the `incoming_trusted_action` setting the config template already documented. The handler now reads that key: `notify` (default — alert only, let it ring), `hangup` (hang up only), or `hangup_and_sms` (the previous behaviour). Unknown/missing values fail closed to `notify`. Addresses T09 Finding 2.
+
+### Docs
+- SKILL.md: corrected the LLM-reply section (draft-only default + `llm_auto_reply`), documented `incoming_trusted_action` under the calls section, and added both defaults to the `high_impact_actions` frontmatter.
+- `config-templates/paired.conf.example.txt`: added `llm_auto_reply` (default false) and aligned `incoming_trusted_action` values to those the code now honours (notify/hangup/hangup_and_sms).
+- Version 2.3.0.
+
+### Notes
+- No change to the trusted-numbers allowlist gating, the HMAC inbox dispatcher, or any other flow. Owners who want the old behaviour set `llm_auto_reply=true` and `incoming_trusted_action=hangup_and_sms`.
+
 ## [2.2.0] — 2026-10-06 — ClawHub audit: structural hardening + credential/env fixes (Phase 1)
 
 Phase 1 of the v2.1.1 ClawHub security-audit remediation. **Phase 1 is non-behavioural** — no change to runtime defaults (LLM auto-reply, `incoming_trusted_action`, etc.); those are a deliberate Phase 2 follow-up.

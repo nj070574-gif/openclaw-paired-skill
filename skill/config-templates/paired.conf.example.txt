@@ -70,6 +70,14 @@ llm_trigger = Hi Agent,
 # Default: empty
 llm_trigger_whitelist =
 
+# Whether a drafted LLM reply is SENT BACK to the sender automatically via SMS.
+#   false (default) = draft-only: the reply is posted to your Telegram with a
+#                     tap-to-copy /sms command and YOU decide whether to send it.
+#   true            = the reply is texted back to the (whitelisted) sender
+#                     automatically, still gated by the whitelist + 30s cooldown.
+# Default: false (draft-only)
+llm_auto_reply = false
+
 # === Auto-unlock (opt-in, security-sensitive) ===
 # If set to true, paired-sms-send will dismiss the lock screen using a PIN
 # stored at ~/.config/paired/pin (mode 0600 enforced). After sending, --relock
@@ -111,8 +119,11 @@ sms_command_hook = true
 # Default: notify
 incoming_untrusted_action = notify
 
-# What to do for a TRUSTED number:
-#   - notify   : Telegram alert only (default — you decide whether to act)
-#   - notify_and_speak : also fire paired-call-and-speak with a default greeting
+# What to do when an incoming call arrives from a TRUSTED number.
+# (paired-call-handler reads this; any unknown/missing value fails closed to notify.)
+#   - notify         : Telegram alert only; let it ring — nothing is done to the
+#                      call and no SMS is sent (default)
+#   - hangup         : hang up the call, no SMS
+#   - hangup_and_sms : hang up AND text back the "Agent is unavailable…" reply
 # Default: notify
 incoming_trusted_action = notify

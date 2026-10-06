@@ -223,6 +223,14 @@ def _conf_bool(val, default: bool = False) -> bool:
 # (unchanged behaviour — external Gemini responder stays active).
 RESPOND_LOCAL_ONLY = _conf_bool(load_paired_conf().get("respond_local_only"), False)
 
+# llm_auto_reply: when true, a Gemini-drafted answer is sent back to the sender
+# automatically via SMS. DEFAULT false (draft-only): the draft is posted to
+# Telegram with a tap-to-copy /sms command and the owner decides whether to
+# send it. This matches the skill's documented "no automatic SMS reply" posture;
+# set llm_auto_reply=true in ~/.config/paired/paired.conf to opt into automatic
+# sending.
+LLM_AUTO_REPLY = _conf_bool(load_paired_conf().get("llm_auto_reply"), False)
+
 
 def load_gemini_keys() -> list[str]:
     """Read Gemini API keys from a user-supplied config file.
@@ -717,13 +725,21 @@ def main() -> int:
     if answer:
         save_turn(normalized, question, answer)
 
-    # 5. Auto-send SMS reply if Gemini gave us an answer
+    # 5. Send the reply ONLY if llm_auto_reply is explicitly enabled.
+    #    Default is draft-only: the answer is posted to Telegram for the owner to
+    #    review and send with a tap-to-copy /sms command (step 6) — no SMS is
+    #    sent to the contact automatically.
     sms_ok = False
     sms_info = ""
-    if answer:
-        log.info(f"Auto-sending SMS to {sender_addr} (whitelisted): {answer[:60]!r}")
+    sms_attempted = False
+    if answer and LLM_AUTO_REPLY:
+        sms_attempted = True
+        log.info(f"llm_auto_reply=true: auto-sending SMS to {sender_addr} (whitelisted): {answer[:60]!r}")
         sms_ok, sms_info = auto_send_sms(sender_addr, answer)
         log.info(f"Auto-send result: ok={sms_ok} info={sms_info}")
+    elif answer:
+        sms_info = "draft-only (llm_auto_reply disabled) - owner taps /sms to send"
+        log.info("Draft-only mode (llm_auto_reply disabled): posting draft to Telegram, not auto-sending")
     else:
         sms_info = "no answer to send"
 
@@ -739,8 +755,8 @@ def main() -> int:
 
     enrich_note = f" (weather data for {md_escape(weather_meta)})" if weather_meta else ""
 
-    if answer and sms_ok:
-        # Auto-replied successfully - just inform the user what happened
+    if answer and sms_attempted and sms_ok:
+        # Auto-replied successfully (llm_auto_reply=true) - inform the owner
         safe_answer = md_escape(answer)
         msg = (
             f"✅ *Agent auto-replied to {safe_sender}*{enrich_note}\n"
@@ -750,8 +766,8 @@ def main() -> int:
             f"{safe_answer}\n\n"
             f"_({md_escape(sms_info)})_"
         )
-    elif answer and not sms_ok:
-        # Gemini answered but SMS send failed - fall back to draft for manual send
+    elif answer and sms_attempted and not sms_ok:
+        # Gemini answered, auto-send was on but SMS failed - draft for manual send
         safe_answer = md_escape(answer)
         msg = (
             f"⚠️ *Agent answered but SMS auto-send failed* — from {safe_sender}{enrich_note}\n"
@@ -761,6 +777,18 @@ def main() -> int:
             f"{safe_answer}\n\n"
             f"_SMS failure: {md_escape(sms_info[:80])}_\n"
             f"Tap to copy and try sending via Telegram bot:\n"
+            f"`/sms {sender_addr} {answer}`"
+        )
+    elif answer:
+        # Draft-only mode (llm_auto_reply disabled, the default): post the draft
+        # for the owner to review and send. No SMS was sent to the contact.
+        safe_answer = md_escape(answer)
+        msg = (
+            f"💬 *Agent drafted a reply to {safe_sender}*{enrich_note}\n"
+            f"({safe_addr})\n\n"
+            f"❓ {safe_question}\n\n"
+            f"📝 *Draft — tap to copy & send (nothing sent automatically):*\n"
+            f"{safe_answer}\n\n"
             f"`/sms {sender_addr} {answer}`"
         )
     else:
@@ -776,8 +804,11 @@ def main() -> int:
 
     sent = telegram_send(token, chat_id, msg)
     if sent:
-        log.info(f"Posted Telegram transparency alert (sms_ok={sms_ok})")
-        return 0 if sms_ok else (3 if answer else 3)
+        log.info(f"Posted Telegram alert (llm_auto_reply={LLM_AUTO_REPLY} sms_ok={sms_ok})")
+        # Success when we auto-sent OK, or when draft-only posted an answer.
+        if sms_ok or (answer and not sms_attempted):
+            return 0
+        return 3
     log.error("Failed to post Telegram alert")
     return 3
 

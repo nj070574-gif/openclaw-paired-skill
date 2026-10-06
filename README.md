@@ -60,11 +60,23 @@ Inbound events (SMS, calls, notifications) bridge to OpenClaw automatically.
 
 ---
 
-## About the security scanner rating
+## About the security scanner rating — these are features, not vulnerabilities
 
-**ClawScan rates this skill `Review` and VirusTotal Code Insight (PaLM) flags it `suspicious`. This is expected and correct — it is not a sign of malware or malicious intent.**
+**ClawScan rates this skill `Review` and VirusTotal Code Insight flags it `suspicious`. That is expected, correct, and by design — it marks _capability_, not malware, a bug, or a vulnerability.** A phone agent that can text, call, read your notifications and speak in your voice *should* light up a static scanner; a version that didn't would be misrepresenting what it does. **Every finding maps to an intentional, documented feature** — listed below, each with the safeguard that gates it.
 
-Paired is, by design, a high-capability tool. Any honest static analysis of what the skill does will produce a high-risk rating. The Code Insight verdict on v1.0.6 lays out the reasoning plainly: *"executing sudo commands ... maintaining persistent systemd services, and full control over a mobile device via ADB ... [these create] a significant attack surface, although no clear evidence of intentional malice was found."* That summary is accurate. Each capability is documented, declared in the SKILL.md frontmatter, and gated by the safeguards described below.
+| Capability (the feature) | What it's for | Control around it |
+|---|---|---|
+| **Send SMS / place calls** | The agent texts and calls on your behalf | Trusted-numbers allowlist **or** explicit `--confirm`; an empty allowlist blocks all outgoing SMS/calls |
+| **Silent SMS send** | Headless send where the Intent UI isn't usable | **Off** unless `PAIRED_ALLOW_SILENT_SMS=1`; otherwise refuses and points to the UI path |
+| **Auto-unlock the phone** | Unlock a locked device to send/read | **Off** unless `--auto-unlock` per invocation; PIN read from a mode-0600 file only |
+| **ADB device control** | Read notifications, send SMS, drive the screen | Owner-operated, own-device-only; shell-level access is inherent to the feature |
+| **Persistent listeners** (systemd) | Real-time SMS push, call alerts, command hook | You enable each service; the command hook acts only on HMAC-signed inbox messages |
+| **Relay to Telegram** | Phone events on *your own* Telegram | Your own bot token + chat only; POSTs to the Telegram API, fetches **no** remote code |
+| **Voice cloning** | Speak in *your own* voice | Clone your own voice only; disclose AI audio to recipients — **not** for impersonation |
+| **Bluetooth auto-pair** | One-shot "pair this device" | Default is **interactive**; `--mode auto` is an explicit opt-in |
+| **sudo** (`bt-recover`, `bt-pan` only) | BlueZ daemon reset + PAN bridge need root | Used for exactly those two operations, nothing else |
+
+The Code Insight verdict on an earlier version put the *capability* accurately: *"executing sudo commands ... maintaining persistent systemd services, and full control over a mobile device via ADB ... [these create] a significant attack surface, although no clear evidence of intentional malice was found."* Correct on every count — and every one of those is a feature you install this skill **to get**.
 
 **What the skill genuinely does:**
 
